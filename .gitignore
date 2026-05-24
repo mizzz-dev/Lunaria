@@ -28,6 +28,7 @@ yarn-error.log*
 *.sqlite
 *.sqlite3
 tmp/
+.playwright-mcp/
 data/
 postgres-data/
 redis-data/
@@ -37,4 +38,3 @@ redis-data/
 Thumbs.db
 .idea/
 .vscode/
-
