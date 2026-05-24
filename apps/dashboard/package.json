@@ -11,8 +11,6 @@
     "test": "echo \"No dashboard tests yet\""
   },
   "dependencies": {
-    "@lunaria/core": "workspace:*",
-    "@lunaria/db": "workspace:*",
     "@lunaria/shared": "workspace:*",
     "clsx": "^2.1.1",
     "dotenv": "^17.2.3",

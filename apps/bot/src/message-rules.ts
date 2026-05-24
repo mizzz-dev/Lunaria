@@ -1,24 +1,10 @@
 import { RuleEngine, type MessageCreateEvent, type RuleAction } from "@lunaria/core";
-import {
-  prisma,
-  PrismaAuditLogStore,
-  PrismaRuleStore,
-  type RuleStore
-} from "@lunaria/db";
 import type { Message } from "discord.js";
 
-type GuildRuleRuntime = {
-  readonly engine: RuleEngine;
-  expiresAt: number;
-};
+const ruleEngine = new RuleEngine({ rules: [] });
 
-const ruleStore: RuleStore = new PrismaRuleStore(prisma);
-const auditLogStore = new PrismaAuditLogStore(prisma);
-const guildRuntimes = new Map<string, GuildRuleRuntime>();
-const ruleCacheTtlMs = 30_000;
-
-export function getBotRuleEngine(guildId: string): RuleEngine | undefined {
-  return guildRuntimes.get(guildId)?.engine;
+export function getBotRuleEngine(): RuleEngine {
+  return ruleEngine;
 }
 
 export function toMessageCreateEvent(message: Message): MessageCreateEvent | undefined {
@@ -45,40 +31,11 @@ export async function handleMessageCreate(message: Message): Promise<void> {
     return;
   }
 
-  const runtime = await getGuildRuleRuntime(event.guildId);
-  const result = await runtime.engine.evaluate(event);
+  const result = await ruleEngine.evaluate(event);
 
   for (const action of result.actions) {
     await executeRuleAction(message, action);
   }
-}
-
-async function getGuildRuleRuntime(guildId: string): Promise<GuildRuleRuntime> {
-  const now = Date.now();
-  const current = guildRuntimes.get(guildId);
-
-  if (current && current.expiresAt > now) {
-    return current;
-  }
-
-  const rules = await ruleStore.listEnabledByGuild(guildId, "messageCreate");
-
-  if (current) {
-    current.engine.replaceRules(rules);
-    current.expiresAt = now + ruleCacheTtlMs;
-    return current;
-  }
-
-  const runtime: GuildRuleRuntime = {
-    engine: new RuleEngine({
-      rules,
-      auditLogStore
-    }),
-    expiresAt: now + ruleCacheTtlMs
-  };
-
-  guildRuntimes.set(guildId, runtime);
-  return runtime;
 }
 
 async function executeRuleAction(message: Message, action: RuleAction): Promise<void> {

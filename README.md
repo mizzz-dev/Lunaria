@@ -28,26 +28,6 @@ Initial docs:
 - Rule engine
 - AutoResponse, Quote, Daily Content, LFG, and basic moderation plugins
 
-## AutoResponse v1
-
-AutoResponse v1 は Dashboard から選択中のGuildに対して、1つのキーワード返信ルールを保存できる。
-
-保存される内容:
-
-- `PluginSetting`: AutoResponseの有効/無効と設定JSON
-- `Rule`: `messageCreate` 用の keyword/channel/cooldown/reply ルール
-- `AuditLog`: 設定変更とルール発火
-
-Botがメッセージ本文を読むには、Discord Developer Portal で Message Content Intent を有効にする。
-
-```text
-Discord Developer Portal
-  > Lunaria Bot
-  > Bot
-  > Privileged Gateway Intents
-  > Message Content Intent
-```
-
 ## Local Setup
 
 Current local flow:
@@ -96,7 +76,7 @@ Run the bot shell after setting Discord secrets in `.env`:
 pnpm --filter @lunaria/bot dev
 ```
 
-The current bot registers `/lunaria ping` and runs saved `messageCreate` rules from PostgreSQL. AutoResponse rules that inspect message text require enabling the Message Content privileged intent in the Discord Developer Portal.
+The current bot registers `/lunaria ping` and wires the message rule engine with no default message rules. Future AutoResponse rules that inspect message text will require enabling the Message Content privileged intent in the Discord Developer Portal.
 
 If guild command registration fails with `Missing Access`, invite the bot to the target guild with both scopes:
 

@@ -12,12 +12,10 @@ import {
   Globe2,
   Languages,
   LockKeyhole,
-  MessageSquareReply,
   Moon,
   Orbit,
   Plug,
   RadioTower,
-  Save,
   Search,
   ShieldCheck,
   Sparkles,
@@ -116,66 +114,15 @@ type MeResponse = {
   primaryGuildId: string | null;
 };
 
-type AutoResponseState = {
-  enabled: boolean;
-  keyword: string;
-  response: string;
-  channelId: string;
-  cooldownSeconds: number;
-  mentionAuthor: boolean;
-};
-
-const defaultAutoResponse: AutoResponseState = {
-  enabled: false,
-  keyword: "こんにちは",
-  response: "こんにちは、Lunariaです。",
-  channelId: "",
-  cooldownSeconds: 30,
-  mentionAuthor: false
-};
-
 export default function DashboardPage() {
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [locale, setLocale] = useState<"ja" | "en">("ja");
   const [me, setMe] = useState<MeResponse | null>(null);
   const [selectedGuildId, setSelectedGuildId] = useState<string | null>(null);
-  const [autoResponse, setAutoResponse] =
-    useState<AutoResponseState>(defaultAutoResponse);
-  const [autoResponseStatus, setAutoResponseStatus] = useState<
-    "idle" | "loading" | "saving" | "saved" | "error"
-  >("idle");
   const t = copy[locale];
 
   function handleGuildChange(event: ChangeEvent<HTMLSelectElement>) {
     setSelectedGuildId(event.currentTarget.value);
-  }
-
-  function updateAutoResponse<K extends keyof AutoResponseState>(
-    key: K,
-    value: AutoResponseState[K]
-  ) {
-    setAutoResponse((current) => ({
-      ...current,
-      [key]: value
-    }));
-  }
-
-  async function saveAutoResponse() {
-    if (!selectedGuildId) {
-      return;
-    }
-
-    setAutoResponseStatus("saving");
-
-    const response = await fetch(`/api/guilds/${selectedGuildId}/autoresponse`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json"
-      },
-      body: JSON.stringify(autoResponse)
-    });
-
-    setAutoResponseStatus(response.ok ? "saved" : "error");
   }
 
   useEffect(() => {
@@ -194,31 +141,6 @@ export default function DashboardPage() {
         });
       });
   }, []);
-
-  useEffect(() => {
-    if (!selectedGuildId || !me?.authenticated) {
-      return;
-    }
-
-    setAutoResponseStatus("loading");
-
-    fetch(`/api/guilds/${selectedGuildId}/autoresponse`)
-      .then((response) => response.json())
-      .then((data) => {
-        setAutoResponse({
-          ...defaultAutoResponse,
-          enabled: Boolean(data.enabled),
-          keyword: data.config?.keyword ?? defaultAutoResponse.keyword,
-          response: data.config?.response ?? defaultAutoResponse.response,
-          channelId: data.config?.channelId ?? "",
-          cooldownSeconds:
-            data.config?.cooldownSeconds ?? defaultAutoResponse.cooldownSeconds,
-          mentionAuthor: Boolean(data.config?.mentionAuthor)
-        });
-        setAutoResponseStatus("idle");
-      })
-      .catch(() => setAutoResponseStatus("error"));
-  }, [me?.authenticated, selectedGuildId]);
 
   const selectedGuild = me?.guilds.find((guild) => guild.id === selectedGuildId);
 
@@ -369,116 +291,6 @@ export default function DashboardPage() {
             <strong className="selected-guild">
               {selectedGuild.name} · {selectedGuild.id}
             </strong>
-          ) : null}
-        </section>
-
-        <section className="autoresponse-panel" aria-label="AutoResponse settings">
-          <div className="autoresponse-header">
-            <div>
-              <h2>AutoResponse</h2>
-              <p>
-                {locale === "ja"
-                  ? "キーワードに反応して、Lunariaが指定した返信を返します。"
-                  : "Reply from Lunaria when a configured keyword appears."}
-              </p>
-            </div>
-            <label className="switch-row">
-              <span>{autoResponse.enabled ? "Enabled" : "Disabled"}</span>
-              <input
-                checked={autoResponse.enabled}
-                type="checkbox"
-                onChange={(event) =>
-                  updateAutoResponse("enabled", event.currentTarget.checked)
-                }
-              />
-            </label>
-          </div>
-
-          <div className="autoresponse-form">
-            <label>
-              <span>Keyword</span>
-              <input
-                value={autoResponse.keyword}
-                maxLength={80}
-                onChange={(event) =>
-                  updateAutoResponse("keyword", event.currentTarget.value)
-                }
-              />
-            </label>
-            <label>
-              <span>Channel ID</span>
-              <input
-                value={autoResponse.channelId}
-                placeholder="空なら全チャンネル"
-                onChange={(event) =>
-                  updateAutoResponse("channelId", event.currentTarget.value)
-                }
-              />
-            </label>
-            <label>
-              <span>Cooldown seconds</span>
-              <input
-                min={0}
-                max={86400}
-                type="number"
-                value={autoResponse.cooldownSeconds}
-                onChange={(event) =>
-                  updateAutoResponse(
-                    "cooldownSeconds",
-                    Number(event.currentTarget.value)
-                  )
-                }
-              />
-            </label>
-            <label className="response-field">
-              <span>Response</span>
-              <textarea
-                value={autoResponse.response}
-                maxLength={1800}
-                rows={4}
-                onChange={(event) =>
-                  updateAutoResponse("response", event.currentTarget.value)
-                }
-              />
-            </label>
-            <label className="check-row">
-              <input
-                checked={autoResponse.mentionAuthor}
-                type="checkbox"
-                onChange={(event) =>
-                  updateAutoResponse(
-                    "mentionAuthor",
-                    event.currentTarget.checked
-                  )
-                }
-              />
-              <span>返信時に投稿者へメンションする</span>
-            </label>
-          </div>
-
-          <div className="autoresponse-preview">
-            <div>
-              <MessageSquareReply size={18} />
-              <span>{autoResponse.keyword || "keyword"}</span>
-              <strong>{autoResponse.response || "response"}</strong>
-            </div>
-            <button
-              className="primary-button"
-              type="button"
-              disabled={!me?.authenticated || autoResponseStatus === "saving"}
-              onClick={saveAutoResponse}
-            >
-              <Save size={18} />
-              {autoResponseStatus === "saving" ? "Saving" : "Save AutoResponse"}
-            </button>
-          </div>
-          {autoResponseStatus === "saved" ? (
-            <p className="form-message success">AutoResponse設定を保存しました。</p>
-          ) : null}
-          {autoResponseStatus === "error" ? (
-            <p className="form-message error">
-              AutoResponse設定の読み込みまたは保存に失敗しました。
-            </p>
           ) : null}
         </section>
 
