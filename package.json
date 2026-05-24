@@ -12,9 +12,9 @@
   "scripts": {
     "build": "pnpm -r --if-present build",
     "dev": "pnpm -r --parallel --if-present dev",
-    "lint": "pnpm -r --if-present lint",
-    "typecheck": "pnpm -r --if-present typecheck",
-    "test": "pnpm -r --if-present test"
+    "lint": "pnpm --filter @lunaria/core build && pnpm --filter @lunaria/db build && pnpm -r --if-present lint",
+    "typecheck": "pnpm --filter @lunaria/core build && pnpm --filter @lunaria/db build && pnpm -r --if-present typecheck",
+    "test": "pnpm --filter @lunaria/core build && pnpm --filter @lunaria/db build && pnpm -r --if-present test"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

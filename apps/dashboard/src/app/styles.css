@@ -48,6 +48,11 @@ body {
 
 button { font: inherit; }
 
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.54;
+}
+
 .console-shell {
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);
@@ -416,6 +421,166 @@ button { font: inherit; }
   padding: 16px;
 }
 
+.autoresponse-panel {
+  display: grid;
+  gap: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(135deg, rgba(116, 232, 255, 0.08), transparent 42%),
+    rgba(10, 15, 31, 0.76);
+  margin-bottom: 18px;
+  padding: 18px;
+}
+
+.autoresponse-header,
+.autoresponse-preview,
+.switch-row,
+.check-row {
+  display: flex;
+  align-items: center;
+}
+
+.autoresponse-header {
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.autoresponse-header h2,
+.autoresponse-header p,
+.form-message {
+  margin: 0;
+}
+
+.autoresponse-header h2 {
+  font-size: 18px;
+}
+
+.autoresponse-header p {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.switch-row {
+  gap: 10px;
+  color: var(--accent-strong);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.switch-row input,
+.check-row input {
+  accent-color: var(--cyan);
+}
+
+.autoresponse-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 260px) 160px;
+  gap: 12px;
+}
+
+.autoresponse-form label {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.autoresponse-form label span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.autoresponse-form input,
+.autoresponse-form textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(7, 11, 24, 0.64);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+}
+
+.autoresponse-form input {
+  min-height: 42px;
+  padding: 0 12px;
+}
+
+.autoresponse-form textarea {
+  resize: vertical;
+  padding: 11px 12px;
+  line-height: 1.55;
+}
+
+.autoresponse-form input:focus,
+.autoresponse-form textarea:focus {
+  border-color: rgba(116, 232, 255, 0.48);
+  box-shadow: 0 0 0 3px rgba(116, 232, 255, 0.08);
+}
+
+.response-field,
+.check-row {
+  grid-column: 1 / -1;
+}
+
+.check-row {
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 9px;
+}
+
+.autoresponse-preview {
+  justify-content: space-between;
+  gap: 14px;
+  border: 1px solid rgba(116, 232, 255, 0.16);
+  border-radius: 8px;
+  background: rgba(116, 232, 255, 0.06);
+  padding: 12px;
+}
+
+.autoresponse-preview div {
+  display: grid;
+  grid-template-columns: auto minmax(90px, auto) minmax(0, 1fr);
+  align-items: center;
+  min-width: 0;
+  gap: 10px;
+}
+
+.autoresponse-preview svg {
+  color: var(--cyan);
+}
+
+.autoresponse-preview span {
+  color: var(--accent-strong);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.autoresponse-preview strong {
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.form-message {
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+.form-message.success {
+  background: rgba(143, 244, 210, 0.09);
+  color: var(--mint);
+}
+
+.form-message.error {
+  background: rgba(255, 120, 120, 0.1);
+  color: #ffb7b7;
+}
+
 .guild-selector-panel h2,
 .guild-selector-panel p {
   margin: 0;
@@ -710,6 +875,18 @@ button { font: inherit; }
 
   .guild-selector-panel {
     grid-template-columns: 1fr;
+  }
+
+  .autoresponse-form,
+  .autoresponse-preview,
+  .autoresponse-preview div {
+    grid-template-columns: 1fr;
+  }
+
+  .autoresponse-header,
+  .autoresponse-preview {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .rule-row { grid-template-columns: 1fr; }
