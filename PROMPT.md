@@ -1,6 +1,6 @@
 # Lunaria Prompt Guide
 
-Use this file when asking an AI coding agent to work on Lunaria.
+Lunaria の開発を AI coding agent に依頼するときは、このファイルを参照する。
 
 ## Project Context
 
@@ -34,5 +34,4 @@ Read:
 - Prefer existing project patterns once implementation exists.
 - Add or update tests when behavior changes.
 - Update docs when architecture or setup changes.
-- Use Japanese for PR bodies, commit messages, and work logs unless the issue says otherwise.
-
+- PR本文、コミットメッセージ、ドキュメント、作業ログ、Issueコメントは、Issueで別指定がない限り日本語で書く。

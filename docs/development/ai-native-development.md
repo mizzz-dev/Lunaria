@@ -38,6 +38,10 @@ Lunaria ではこの思想をそのまま採用し、必要なファイルを段
 GitHub Issues は外部公開、PR 連携、OSS 化に備えた補助として扱う。
 GitHub repository は公開予定のため、secret、private guild data、個人情報、token、未公開 credential は repository に含めない。
 
+運用言語は日本語を基本にする。
+ドキュメント、PR本文、コミットメッセージ、作業ログ、Linear/GitHubのIssueコメントは、外部API名やコード識別子を除いて日本語で書く。
+英語が必要な箇所は、公開README、ライブラリ固有の設定、エラーメッセージ、将来のi18n文言などに限定する。
+
 ```mermaid
 flowchart LR
     Idea["Idea"] --> Issue["Linear Issue"]
