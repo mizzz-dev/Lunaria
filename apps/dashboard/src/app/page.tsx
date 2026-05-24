@@ -15,6 +15,7 @@ import {
   MessageSquareReply,
   Moon,
   Orbit,
+  Plus,
   Plug,
   RadioTower,
   Save,
@@ -23,6 +24,7 @@ import {
   Sparkles,
   Sun,
   TerminalSquare,
+  Trash2,
   UsersRound,
   WandSparkles
 } from "lucide-react";
@@ -116,7 +118,8 @@ type MeResponse = {
   primaryGuildId: string | null;
 };
 
-type AutoResponseState = {
+type AutoResponseRuleState = {
+  id: string;
   enabled: boolean;
   keyword: string;
   response: string;
@@ -125,13 +128,31 @@ type AutoResponseState = {
   mentionAuthor: boolean;
 };
 
+type AutoResponseState = {
+  enabled: boolean;
+  rules: AutoResponseRuleState[];
+};
+
+function createAutoResponseRule(
+  overrides: Partial<AutoResponseRuleState> = {}
+): AutoResponseRuleState {
+  return {
+    id:
+      globalThis.crypto?.randomUUID?.() ??
+      `rule-${Date.now()}-${Math.round(Math.random() * 1000)}`,
+    enabled: true,
+    keyword: "こんにちは",
+    response: "こんにちは、Lunariaです。",
+    channelId: "",
+    cooldownSeconds: 30,
+    mentionAuthor: false,
+    ...overrides
+  };
+}
+
 const defaultAutoResponse: AutoResponseState = {
   enabled: false,
-  keyword: "こんにちは",
-  response: "こんにちは、Lunariaです。",
-  channelId: "",
-  cooldownSeconds: 30,
-  mentionAuthor: false
+  rules: [createAutoResponseRule({ id: "default" })]
 };
 
 export default function DashboardPage() {
@@ -157,6 +178,39 @@ export default function DashboardPage() {
     setAutoResponse((current) => ({
       ...current,
       [key]: value
+    }));
+  }
+
+  function updateAutoResponseRule<K extends keyof AutoResponseRuleState>(
+    ruleId: string,
+    key: K,
+    value: AutoResponseRuleState[K]
+  ) {
+    setAutoResponse((current) => ({
+      ...current,
+      rules: current.rules.map((rule) =>
+        rule.id === ruleId ? { ...rule, [key]: value } : rule
+      )
+    }));
+  }
+
+  function addAutoResponseRule() {
+    setAutoResponse((current) => ({
+      ...current,
+      rules: [
+        ...current.rules,
+        createAutoResponseRule({
+          keyword: "",
+          response: ""
+        })
+      ]
+    }));
+  }
+
+  function removeAutoResponseRule(ruleId: string) {
+    setAutoResponse((current) => ({
+      ...current,
+      rules: current.rules.filter((rule) => rule.id !== ruleId)
     }));
   }
 
@@ -205,15 +259,24 @@ export default function DashboardPage() {
     fetch(`/api/guilds/${selectedGuildId}/autoresponse`)
       .then((response) => response.json())
       .then((data) => {
+        const rules =
+          Array.isArray(data.rules) && data.rules.length > 0
+            ? data.rules.map((rule: Partial<AutoResponseRuleState>) =>
+                createAutoResponseRule({
+                  ...(rule.id ? { id: rule.id } : {}),
+                  enabled: rule.enabled ?? true,
+                  keyword: rule.keyword ?? "",
+                  response: rule.response ?? "",
+                  channelId: rule.channelId ?? "",
+                  cooldownSeconds: rule.cooldownSeconds ?? 30,
+                  mentionAuthor: Boolean(rule.mentionAuthor)
+                })
+              )
+            : defaultAutoResponse.rules;
+
         setAutoResponse({
-          ...defaultAutoResponse,
           enabled: Boolean(data.enabled),
-          keyword: data.config?.keyword ?? defaultAutoResponse.keyword,
-          response: data.config?.response ?? defaultAutoResponse.response,
-          channelId: data.config?.channelId ?? "",
-          cooldownSeconds:
-            data.config?.cooldownSeconds ?? defaultAutoResponse.cooldownSeconds,
-          mentionAuthor: Boolean(data.config?.mentionAuthor)
+          rules
         });
         setAutoResponseStatus("idle");
       })
@@ -378,89 +441,148 @@ export default function DashboardPage() {
               <h2>AutoResponse</h2>
               <p>
                 {locale === "ja"
-                  ? "キーワードに反応して、Lunariaが指定した返信を返します。"
-                  : "Reply from Lunaria when a configured keyword appears."}
+                  ? "複数のキーワード反応を管理し、Lunariaが指定した返信を返します。"
+                  : "Manage multiple keyword responses from Lunaria."}
               </p>
             </div>
-            <label className="switch-row">
-              <span>{autoResponse.enabled ? "Enabled" : "Disabled"}</span>
-              <input
-                checked={autoResponse.enabled}
-                type="checkbox"
-                onChange={(event) =>
-                  updateAutoResponse("enabled", event.currentTarget.checked)
-                }
-              />
-            </label>
+            <div className="autoresponse-actions">
+              <label className="switch-row">
+                <span>{autoResponse.enabled ? "Enabled" : "Disabled"}</span>
+                <input
+                  checked={autoResponse.enabled}
+                  type="checkbox"
+                  onChange={(event) =>
+                    updateAutoResponse("enabled", event.currentTarget.checked)
+                  }
+                />
+              </label>
+              <button className="secondary-button" type="button" onClick={addAutoResponseRule}>
+                <Plus size={18} />
+                Add rule
+              </button>
+            </div>
           </div>
 
-          <div className="autoresponse-form">
-            <label>
-              <span>Keyword</span>
-              <input
-                value={autoResponse.keyword}
-                maxLength={80}
-                onChange={(event) =>
-                  updateAutoResponse("keyword", event.currentTarget.value)
-                }
-              />
-            </label>
-            <label>
-              <span>Channel ID</span>
-              <input
-                value={autoResponse.channelId}
-                placeholder="空なら全チャンネル"
-                onChange={(event) =>
-                  updateAutoResponse("channelId", event.currentTarget.value)
-                }
-              />
-            </label>
-            <label>
-              <span>Cooldown seconds</span>
-              <input
-                min={0}
-                max={86400}
-                type="number"
-                value={autoResponse.cooldownSeconds}
-                onChange={(event) =>
-                  updateAutoResponse(
-                    "cooldownSeconds",
-                    Number(event.currentTarget.value)
-                  )
-                }
-              />
-            </label>
-            <label className="response-field">
-              <span>Response</span>
-              <textarea
-                value={autoResponse.response}
-                maxLength={1800}
-                rows={4}
-                onChange={(event) =>
-                  updateAutoResponse("response", event.currentTarget.value)
-                }
-              />
-            </label>
-            <label className="check-row">
-              <input
-                checked={autoResponse.mentionAuthor}
-                type="checkbox"
-                onChange={(event) =>
-                  updateAutoResponse(
-                    "mentionAuthor",
-                    event.currentTarget.checked
-                  )
-                }
-              />
-              <span>返信時に投稿者へメンションする</span>
-            </label>
+          <div className="autoresponse-rule-list">
+            {autoResponse.rules.map((rule, index) => (
+              <article className="autoresponse-rule-card" key={rule.id}>
+                <div className="rule-card-header">
+                  <div>
+                    <strong>Rule {index + 1}</strong>
+                    <span>{rule.enabled ? "Live" : "Paused"}</span>
+                  </div>
+                  <div className="rule-card-actions">
+                    <label className="switch-row">
+                      <span>{rule.enabled ? "On" : "Off"}</span>
+                      <input
+                        checked={rule.enabled}
+                        type="checkbox"
+                        onChange={(event) =>
+                          updateAutoResponseRule(
+                            rule.id,
+                            "enabled",
+                            event.currentTarget.checked
+                          )
+                        }
+                      />
+                    </label>
+                    <button
+                      aria-label="Delete AutoResponse rule"
+                      className="danger-icon-button"
+                      type="button"
+                      onClick={() => removeAutoResponseRule(rule.id)}
+                    >
+                      <Trash2 size={17} />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="autoresponse-form">
+                  <label>
+                    <span>Keyword</span>
+                    <input
+                      value={rule.keyword}
+                      maxLength={80}
+                      onChange={(event) =>
+                        updateAutoResponseRule(
+                          rule.id,
+                          "keyword",
+                          event.currentTarget.value
+                        )
+                      }
+                    />
+                  </label>
+                  <label>
+                    <span>Channel ID</span>
+                    <input
+                      value={rule.channelId}
+                      placeholder="空なら全チャンネル"
+                      onChange={(event) =>
+                        updateAutoResponseRule(
+                          rule.id,
+                          "channelId",
+                          event.currentTarget.value
+                        )
+                      }
+                    />
+                  </label>
+                  <label>
+                    <span>Cooldown seconds</span>
+                    <input
+                      min={0}
+                      max={86400}
+                      type="number"
+                      value={rule.cooldownSeconds}
+                      onChange={(event) =>
+                        updateAutoResponseRule(
+                          rule.id,
+                          "cooldownSeconds",
+                          Number(event.currentTarget.value)
+                        )
+                      }
+                    />
+                  </label>
+                  <label className="response-field">
+                    <span>Response</span>
+                    <textarea
+                      value={rule.response}
+                      maxLength={1800}
+                      rows={3}
+                      onChange={(event) =>
+                        updateAutoResponseRule(
+                          rule.id,
+                          "response",
+                          event.currentTarget.value
+                        )
+                      }
+                    />
+                  </label>
+                  <label className="check-row">
+                    <input
+                      checked={rule.mentionAuthor}
+                      type="checkbox"
+                      onChange={(event) =>
+                        updateAutoResponseRule(
+                          rule.id,
+                          "mentionAuthor",
+                          event.currentTarget.checked
+                        )
+                      }
+                    />
+                    <span>返信時に投稿者へメンションする</span>
+                  </label>
+                </div>
+              </article>
+            ))}
           </div>
 
           <div className="autoresponse-preview">
             <div>
               <MessageSquareReply size={18} />
-              <span>{autoResponse.keyword || "keyword"}</span>
-              <strong>{autoResponse.response || "response"}</strong>
+              <span>{autoResponse.rules.length} rules</span>
+              <strong>
+                {autoResponse.rules.filter((rule) => rule.enabled).length} active
+              </strong>
             </div>
             <button
               className="primary-button"

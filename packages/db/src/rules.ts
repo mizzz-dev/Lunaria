@@ -5,6 +5,12 @@ import { toInputJson } from "./json.js";
 
 export interface RuleStore {
   listEnabledByGuild(guildId: string, trigger?: RuleEvent["type"]): Promise<RuleDefinition[]>;
+  listByGuildPlugin(guildId: string, pluginId: string): Promise<RuleDefinition[]>;
+  replaceByGuildPlugin(
+    guildId: string,
+    pluginId: string,
+    rules: readonly RuleDefinition[]
+  ): Promise<RuleDefinition[]>;
   upsert(guildId: string, rule: RuleDefinition): Promise<RuleDefinition>;
 }
 
@@ -25,6 +31,53 @@ export class PrismaRuleStore implements RuleStore {
     });
 
     return records.map((record) => this.toDomain(record));
+  }
+
+  async listByGuildPlugin(guildId: string, pluginId: string): Promise<RuleDefinition[]> {
+    const records = await this.prisma.rule.findMany({
+      where: {
+        guildId,
+        pluginId
+      },
+      orderBy: { createdAt: "asc" }
+    });
+
+    return records.map((record) => this.toDomain(record));
+  }
+
+  async replaceByGuildPlugin(
+    guildId: string,
+    pluginId: string,
+    rules: readonly RuleDefinition[]
+  ): Promise<RuleDefinition[]> {
+    await ensureGuild(this.prisma, { id: guildId });
+
+    await this.prisma.$transaction([
+      this.prisma.rule.deleteMany({
+        where: {
+          guildId,
+          pluginId
+        }
+      }),
+      ...rules.map((rule) =>
+        this.prisma.rule.create({
+          data: {
+            id: rule.id,
+            guildId,
+            pluginId: rule.pluginId,
+            name: rule.name,
+            enabled: rule.enabled,
+            trigger: rule.trigger,
+            conditions: toInputJson(rule.conditions),
+            actions: toInputJson(rule.actions),
+            cooldown: rule.cooldown ? toInputJson(rule.cooldown) : Prisma.JsonNull,
+            preventBotLoop: rule.preventBotLoop ?? true
+          }
+        })
+      )
+    ]);
+
+    return this.listByGuildPlugin(guildId, pluginId);
   }
 
   async upsert(guildId: string, rule: RuleDefinition): Promise<RuleDefinition> {

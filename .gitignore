@@ -28,6 +28,8 @@ yarn-error.log*
 *.sqlite
 *.sqlite3
 tmp/
+.logs/
+.runtime/
 .playwright-mcp/
 data/
 postgres-data/
