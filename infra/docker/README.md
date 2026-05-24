@@ -22,7 +22,7 @@ docker compose ps
 Troubleshooting:
 
 - If Docker reports `dockerDesktopLinuxEngine` not found, start Docker Desktop first.
-- If ports `5432` or `6379` are already in use, change `POSTGRES_PORT` or `REDIS_PORT` in `.env`.
+- If ports `5432` or `6379` are already in use, change `POSTGRES_PORT`, `REDIS_PORT`, `DATABASE_URL`, and `REDIS_URL` in `.env`.
 
 Stop:
 

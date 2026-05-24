@@ -48,6 +48,7 @@ docker compose ps
 ```
 
 If `docker compose up -d` fails with `dockerDesktopLinuxEngine` not found, start Docker Desktop and wait until the Linux engine is ready, then run the command again.
+If another PostgreSQL or Redis instance already uses `5432` or `6379`, change `POSTGRES_PORT`, `REDIS_PORT`, `DATABASE_URL`, and `REDIS_URL` in your local `.env`.
 
 Database migrations, Discord bot login, API health checks, and the real dashboard app will be added in the next milestones.
 
@@ -63,6 +64,18 @@ Run the bot shell after setting Discord secrets in `.env`:
 
 ```powershell
 pnpm --filter @lunaria/bot dev
+```
+
+If guild command registration fails with `Missing Access`, invite the bot to the target guild with both scopes:
+
+```text
+bot applications.commands
+```
+
+Development invite URL template:
+
+```text
+https://discord.com/oauth2/authorize?client_id=YOUR_CLIENT_ID&permissions=2147486720&scope=bot%20applications.commands
 ```
 
 ## Workspace

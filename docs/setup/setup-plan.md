@@ -97,6 +97,14 @@ RIOT_API_KEY=
 7. guild id を development seed に登録
 8. slash commands を登録
 
+開発用 invite URL template:
+
+```text
+https://discord.com/oauth2/authorize?client_id=YOUR_CLIENT_ID&permissions=2147486720&scope=bot%20applications.commands
+```
+
+`Missing Access` で guild command registration が失敗する場合は、対象 guild に Bot が招待されているか、`applications.commands` scope が付いているかを確認する。
+
 必要 intents:
 
 - Guilds
