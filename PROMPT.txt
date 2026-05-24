@@ -1,0 +1,14 @@
+Lunaria is a plugin-based Discord bot and dashboard for game communities.
+
+Before working, read:
+- docs/requirements/lunaria-prd.md
+- docs/requirements/initial-decisions.md
+- docs/architecture/lunaria-architecture.md
+- docs/development/ai-native-development.md
+- docs/development/linear-backlog.md
+
+Do not commit secrets.
+Keep changes scoped.
+Use TypeScript.
+Use Japanese for PR bodies, commit messages, and work logs unless instructed otherwise.
+

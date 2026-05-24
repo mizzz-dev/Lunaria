@@ -1,0 +1,40 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build outputs
+dist/
+build/
+.next/
+out/
+coverage/
+
+# env and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# database/runtime
+*.sqlite
+*.sqlite3
+tmp/
+data/
+postgres-data/
+redis-data/
+
+# editor/os
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+

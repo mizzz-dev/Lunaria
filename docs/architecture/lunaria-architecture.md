@@ -12,7 +12,7 @@ Lunaria は monorepo として開始し、Bot、API、Dashboard、Worker、share
 - Language: TypeScript
 - Discord Bot: discord.js v14
 - Dashboard: Next.js
-- API: NestJS or Fastify
+- API: Fastify initially, NestJS remains an option if module complexity grows
 - Database: PostgreSQL
 - ORM: Prisma or Drizzle
 - Cache: Redis
@@ -23,8 +23,8 @@ Lunaria は monorepo として開始し、Bot、API、Dashboard、Worker、share
 - Observability: structured logs, OpenTelemetry, Sentry compatible error tracking
 - Local runtime: Docker Compose
 
-API framework は、RBAC、module boundary、OpenAPI、testing を重視するなら NestJS、軽量性と実装速度を重視するなら Fastify を採用する。
-現時点では、長期拡張を考えて NestJS を第一候補にする。
+API framework は、軽量性と起動速度を重視して初期は Fastify を採用する。
+RBAC、module boundary、OpenAPI、dependency injection の複雑さが増えた段階で NestJS への移行または部分採用を再検討する。
 
 ## 3. Monorepo Structure
 

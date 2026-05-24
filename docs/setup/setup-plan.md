@@ -48,6 +48,12 @@ NODE_ENV=development
 DATABASE_URL=postgresql://lunaria:lunaria@localhost:5432/lunaria
 REDIS_URL=redis://localhost:6379
 
+POSTGRES_DB=lunaria
+POSTGRES_USER=lunaria
+POSTGRES_PASSWORD=lunaria
+POSTGRES_PORT=5432
+REDIS_PORT=6379
+
 DISCORD_BOT_TOKEN=
 DISCORD_CLIENT_ID=
 DISCORD_CLIENT_SECRET=
@@ -55,6 +61,9 @@ DISCORD_CALLBACK_URL=http://localhost:3000/api/auth/discord/callback
 
 APP_BASE_URL=http://localhost:3000
 API_BASE_URL=http://localhost:4000
+API_HOST=0.0.0.0
+API_PORT=4000
+LOG_LEVEL=info
 
 PRIMARY_GUILD_ID=964326043420872704
 PUBLIC_DASHBOARD_DOMAIN=ivRm.jp
@@ -113,8 +122,8 @@ Milestone 1: Core Runtime
 - pnpm workspace
 - TypeScript config
 - Docker Compose
-- PostgreSQL
-- Redis
+- PostgreSQL container
+- Redis container
 - API health check
 - Bot login
 - Dashboard shell

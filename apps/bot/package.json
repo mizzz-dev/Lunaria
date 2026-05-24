@@ -1,0 +1,18 @@
+{
+  "name": "@lunaria/bot",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch src/index.ts",
+    "lint": "tsc --noEmit -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run src"
+  },
+  "dependencies": {
+    "@lunaria/shared": "workspace:*",
+    "discord.js": "^14.26.4",
+    "zod": "^4.4.3"
+  }
+}
