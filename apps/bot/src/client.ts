@@ -7,11 +7,12 @@ import {
 } from "discord.js";
 import { commands } from "./commands/index.js";
 import type { BotConfig } from "./config.js";
+import { handleMessageCreate } from "./message-rules.js";
 import { registerGuildCommands } from "./register-guild-commands.js";
 
 export function buildBotClient(): Client {
   const client = new Client({
-    intents: [GatewayIntentBits.Guilds]
+    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages]
   });
 
   client.once(Events.ClientReady, (readyClient) => {
@@ -34,6 +35,10 @@ export function buildBotClient(): Client {
     await command.execute(interaction);
   });
 
+  client.on(Events.MessageCreate, async (message) => {
+    await handleMessageCreate(message);
+  });
+
   return client;
 }
 
@@ -45,4 +50,3 @@ export async function startBot(config: BotConfig): Promise<Client> {
   await client.login(config.DISCORD_BOT_TOKEN);
   return client;
 }
-

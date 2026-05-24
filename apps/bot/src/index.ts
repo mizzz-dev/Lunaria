@@ -3,10 +3,11 @@ import { fileURLToPath } from "node:url";
 import { loadBotConfig } from "./config.js";
 import { startBot } from "./client.js";
 
-loadDotenv();
+loadDotenv({ quiet: true });
 loadDotenv({
   path: fileURLToPath(new URL("../../../.env", import.meta.url)),
-  override: false
+  override: false,
+  quiet: true
 });
 
 try {

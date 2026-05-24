@@ -3,10 +3,11 @@ import { fileURLToPath } from "node:url";
 import { buildApi } from "./app.js";
 import { loadApiConfig } from "./config.js";
 
-loadDotenv();
+loadDotenv({ quiet: true });
 loadDotenv({
   path: fileURLToPath(new URL("../../../.env", import.meta.url)),
-  override: false
+  override: false,
+  quiet: true
 });
 
 const config = loadApiConfig();

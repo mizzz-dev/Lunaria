@@ -6,7 +6,7 @@ The project starts as an internal bot for a private Discord guild and is designe
 
 ## Current Status
 
-Planning, repository foundation, TypeScript monorepo skeleton, and local PostgreSQL/Redis runtime.
+Planning, repository foundation, TypeScript monorepo skeleton, local PostgreSQL/Redis runtime, Discord bot ping command, Discord OAuth guild selector, and the first core plugin/RBAC/audit/rule-engine package.
 
 Initial docs:
 
@@ -50,7 +50,7 @@ docker compose ps
 If `docker compose up -d` fails with `dockerDesktopLinuxEngine` not found, start Docker Desktop and wait until the Linux engine is ready, then run the command again.
 If another PostgreSQL or Redis instance already uses `5432` or `6379`, change `POSTGRES_PORT`, `REDIS_PORT`, `DATABASE_URL`, and `REDIS_URL` in your local `.env`.
 
-Database migrations, Discord bot login, API health checks, and the real dashboard app will be added in the next milestones.
+Database migrations and persistent plugin storage will be added in the next milestones.
 
 Run the API shell:
 
@@ -65,6 +65,8 @@ Run the bot shell after setting Discord secrets in `.env`:
 ```powershell
 pnpm --filter @lunaria/bot dev
 ```
+
+The current bot registers `/lunaria ping` and wires the message rule engine with no default message rules. Future AutoResponse rules that inspect message text will require enabling the Message Content privileged intent in the Discord Developer Portal.
 
 If guild command registration fails with `Missing Access`, invite the bot to the target guild with both scopes:
 
@@ -87,6 +89,7 @@ apps/
   dashboard/
   worker/
 packages/
+  core/
   shared/
 ```
 

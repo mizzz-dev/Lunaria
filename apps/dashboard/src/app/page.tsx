@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { type ChangeEvent, useEffect, useState } from "react";
 import {
   Activity,
   Bot,
@@ -95,10 +95,54 @@ const copy = {
   }
 } as const;
 
+type MeResponse = {
+  authenticated: boolean;
+  user: {
+    id: string;
+    username: string;
+    globalName: string | null;
+    avatar: string | null;
+  } | null;
+  guilds: Array<{
+    id: string;
+    name: string;
+    icon: string | null;
+    owner: boolean;
+    permissions: string;
+    manageable: boolean;
+  }>;
+  primaryGuildId: string | null;
+};
+
 export default function DashboardPage() {
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [locale, setLocale] = useState<"ja" | "en">("ja");
+  const [me, setMe] = useState<MeResponse | null>(null);
+  const [selectedGuildId, setSelectedGuildId] = useState<string | null>(null);
   const t = copy[locale];
+
+  function handleGuildChange(event: ChangeEvent<HTMLSelectElement>) {
+    setSelectedGuildId(event.currentTarget.value);
+  }
+
+  useEffect(() => {
+    fetch("/api/me")
+      .then((response) => response.json() as Promise<MeResponse>)
+      .then((data) => {
+        setMe(data);
+        setSelectedGuildId(data.primaryGuildId ?? data.guilds[0]?.id ?? null);
+      })
+      .catch(() => {
+        setMe({
+          authenticated: false,
+          user: null,
+          guilds: [],
+          primaryGuildId: null
+        });
+      });
+  }, []);
+
+  const selectedGuild = me?.guilds.find((guild) => guild.id === selectedGuildId);
 
   return (
     <main className={clsx("console-shell", theme === "light" && "theme-light")}>
@@ -161,10 +205,18 @@ export default function DashboardPage() {
               <Moon size={16} />
               <Sun size={16} />
             </button>
-            <button className="guild-button" type="button">
-              ivRooom
-              <ChevronDown size={16} />
-            </button>
+            {me?.authenticated ? (
+              <form action="/api/auth/logout" method="post">
+                <button className="guild-button" type="submit">
+                  {me.user?.globalName ?? me.user?.username ?? "Logout"}
+                  <ChevronDown size={16} />
+                </button>
+              </form>
+            ) : (
+              <a className="guild-button login-link" href="/api/auth/discord/login">
+                Discord login
+              </a>
+            )}
           </div>
         </header>
 
@@ -207,6 +259,39 @@ export default function DashboardPage() {
           <MetricCard icon={RadioTower} label="Runtime" value="Online" detail="discord.js gateway ready" />
           <MetricCard icon={Globe2} label="Locale" value={t.localeValue} detail={t.localeDetail} />
           <MetricCard icon={LockKeyhole} label="Mode" value="Internal" detail="guild-scoped configuration" />
+        </section>
+
+        <section className="guild-selector-panel" aria-label="Guild selector">
+          <div>
+            <h2>Guild Selector</h2>
+            <p>
+              {me?.authenticated
+                ? "Manageable Discord guilds from OAuth2 are available below."
+                : "Login with Discord to list guilds where you can manage Lunaria."}
+            </p>
+          </div>
+          {me?.authenticated ? (
+            <select
+              value={selectedGuildId ?? ""}
+              onChange={handleGuildChange}
+            >
+              {me.guilds.map((guild) => (
+                <option key={guild.id} value={guild.id}>
+                  {guild.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <a className="primary-button login-link" href="/api/auth/discord/login">
+              <Bot size={18} />
+              Connect Discord
+            </a>
+          )}
+          {selectedGuild ? (
+            <strong className="selected-guild">
+              {selectedGuild.name} · {selectedGuild.id}
+            </strong>
+          ) : null}
         </section>
 
         <section className="content-grid">

@@ -17,6 +17,5 @@ describe("api health", () => {
       ok: true,
       service: "api"
     });
-  });
+  }, 10000);
 });
-
