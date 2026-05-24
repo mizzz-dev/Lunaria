@@ -12,7 +12,11 @@ import { registerGuildCommands } from "./register-guild-commands.js";
 
 export function buildBotClient(): Client {
   const client = new Client({
-    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages]
+    intents: [
+      GatewayIntentBits.Guilds,
+      GatewayIntentBits.GuildMessages,
+      GatewayIntentBits.MessageContent
+    ]
   });
 
   client.once(Events.ClientReady, (readyClient) => {
@@ -36,7 +40,11 @@ export function buildBotClient(): Client {
   });
 
   client.on(Events.MessageCreate, async (message) => {
-    await handleMessageCreate(message);
+    try {
+      await handleMessageCreate(message);
+    } catch (error) {
+      console.error("Failed to handle messageCreate rule workflow", error);
+    }
   });
 
   return client;

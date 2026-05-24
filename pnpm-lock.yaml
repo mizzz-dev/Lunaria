@@ -41,6 +41,9 @@ importers:
       '@lunaria/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@lunaria/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@lunaria/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -56,6 +59,12 @@ importers:
 
   apps/dashboard:
     dependencies:
+      '@lunaria/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@lunaria/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@lunaria/shared':
         specifier: workspace:*
         version: link:../../packages/shared
