@@ -6,7 +6,7 @@ The project starts as an internal bot for a private Discord guild and is designe
 
 ## Current Status
 
-Planning, repository foundation, TypeScript monorepo skeleton, local PostgreSQL/Redis runtime, Discord bot ping command, Discord OAuth guild selector, and the first core plugin/RBAC/audit/rule-engine package.
+Planning, repository foundation, TypeScript monorepo skeleton, local PostgreSQL/Redis runtime, Discord bot ping command, Discord OAuth guild selector, core plugin/RBAC/audit/rule-engine package, and initial Prisma persistence schema.
 
 Initial docs:
 
@@ -36,6 +36,8 @@ Current local flow:
 cp .env.example .env
 docker compose up -d
 pnpm install
+pnpm --filter @lunaria/db db:generate
+pnpm --filter @lunaria/db db:dev -- --name init_lunaria_core
 pnpm typecheck
 pnpm build
 pnpm test
@@ -50,7 +52,15 @@ docker compose ps
 If `docker compose up -d` fails with `dockerDesktopLinuxEngine` not found, start Docker Desktop and wait until the Linux engine is ready, then run the command again.
 If another PostgreSQL or Redis instance already uses `5432` or `6379`, change `POSTGRES_PORT`, `REDIS_PORT`, `DATABASE_URL`, and `REDIS_URL` in your local `.env`.
 
-Database migrations and persistent plugin storage will be added in the next milestones.
+Database migrations are managed by `@lunaria/db`.
+
+Common DB commands:
+
+```powershell
+pnpm --filter @lunaria/db db:generate
+pnpm --filter @lunaria/db db:dev -- --name your_migration_name
+pnpm --filter @lunaria/db db:deploy
+```
 
 Run the API shell:
 
@@ -90,6 +100,7 @@ apps/
   worker/
 packages/
   core/
+  db/
   shared/
 ```
 

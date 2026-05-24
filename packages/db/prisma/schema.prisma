@@ -1,0 +1,81 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Guild {
+  id              String           @id
+  name            String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  pluginSettings  PluginSetting[]
+  rules           Rule[]
+  auditLogs       AuditLog[]
+  rbacAssignments RbacAssignment[]
+}
+
+model PluginSetting {
+  id              String   @id @default(cuid())
+  guildId         String
+  pluginId        String
+  enabled         Boolean  @default(false)
+  config          Json
+  updatedByUserId String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  guild           Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, pluginId])
+  @@index([guildId])
+}
+
+model Rule {
+  id             String   @id @default(cuid())
+  guildId        String
+  pluginId       String
+  name           String
+  enabled        Boolean  @default(true)
+  trigger        String
+  conditions     Json
+  actions        Json
+  cooldown       Json?
+  preventBotLoop Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  guild          Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@index([guildId, enabled, trigger])
+  @@index([pluginId])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  guildId     String
+  pluginId    String
+  type        String
+  actorUserId String
+  targetId    String?
+  data        Json
+  createdAt   DateTime @default(now())
+  guild       Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@index([guildId, createdAt])
+  @@index([pluginId, type])
+}
+
+model RbacAssignment {
+  id        String   @id @default(cuid())
+  guildId   String
+  userId    String
+  roleKey   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, userId, roleKey])
+  @@index([guildId, userId])
+}
