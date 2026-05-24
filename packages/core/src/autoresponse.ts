@@ -11,6 +11,15 @@ export interface AutoResponseConfig extends JsonObject {
   readonly mentionAuthor: boolean;
 }
 
+export interface AutoResponseRuleConfig extends AutoResponseConfig {
+  readonly id: string;
+  readonly enabled: boolean;
+}
+
+export interface AutoResponsePluginConfig extends JsonObject {
+  readonly rules: readonly AutoResponseRuleConfig[];
+}
+
 export const autoResponsePlugin: PluginMetadata = {
   id: AUTO_RESPONSE_PLUGIN_ID,
   name: "AutoResponse",
@@ -18,31 +27,57 @@ export const autoResponsePlugin: PluginMetadata = {
   description: "キーワードに反応して返信する基本プラグイン。",
   configSchema: {
     type: "object",
-    required: ["keyword", "response", "cooldownSeconds", "mentionAuthor"],
+    required: ["rules"],
     additionalProperties: false,
     properties: {
-      keyword: {
-        type: "string",
-        minLength: 1,
-        maxLength: 80
-      },
-      response: {
-        type: "string",
-        minLength: 1,
-        maxLength: 1800
-      },
-      channelId: {
-        type: "string",
-        minLength: 1,
-        maxLength: 32
-      },
-      cooldownSeconds: {
-        type: "integer",
-        minimum: 0,
-        maximum: 86400
-      },
-      mentionAuthor: {
-        type: "boolean"
+      rules: {
+        type: "array",
+        maxItems: 25,
+        items: {
+          type: "object",
+          required: [
+            "id",
+            "enabled",
+            "keyword",
+            "response",
+            "cooldownSeconds",
+            "mentionAuthor"
+          ],
+          additionalProperties: false,
+          properties: {
+            id: {
+              type: "string",
+              minLength: 1,
+              maxLength: 120
+            },
+            enabled: {
+              type: "boolean"
+            },
+            keyword: {
+              type: "string",
+              minLength: 1,
+              maxLength: 80
+            },
+            response: {
+              type: "string",
+              minLength: 1,
+              maxLength: 1800
+            },
+            channelId: {
+              type: "string",
+              minLength: 1,
+              maxLength: 32
+            },
+            cooldownSeconds: {
+              type: "integer",
+              minimum: 0,
+              maximum: 86400
+            },
+            mentionAuthor: {
+              type: "boolean"
+            }
+          }
+        }
       }
     }
   },
@@ -72,14 +107,13 @@ export const autoResponsePlugin: PluginMetadata = {
   dependencies: []
 };
 
-export function autoResponseRuleId(guildId: string): string {
-  return `${AUTO_RESPONSE_PLUGIN_ID}:${guildId}:default`;
+export function autoResponseRuleId(guildId: string, ruleId = "default"): string {
+  return `${AUTO_RESPONSE_PLUGIN_ID}:${guildId}:${ruleId}`;
 }
 
 export function buildAutoResponseRule(input: {
   readonly guildId: string;
-  readonly config: AutoResponseConfig;
-  readonly enabled: boolean;
+  readonly config: AutoResponseRuleConfig;
 }): RuleDefinition {
   const conditions: RuleDefinition["conditions"] = [
     {
@@ -99,10 +133,10 @@ export function buildAutoResponseRule(input: {
   ];
 
   return {
-    id: autoResponseRuleId(input.guildId),
+    id: autoResponseRuleId(input.guildId, input.config.id),
     pluginId: AUTO_RESPONSE_PLUGIN_ID,
-    name: "AutoResponse default rule",
-    enabled: input.enabled,
+    name: `AutoResponse: ${input.config.keyword}`,
+    enabled: input.config.enabled,
     trigger: "messageCreate",
     conditions,
     actions: [
@@ -127,6 +161,18 @@ export function buildAutoResponseRule(input: {
   };
 }
 
+export function buildAutoResponseRules(input: {
+  readonly guildId: string;
+  readonly rules: readonly AutoResponseRuleConfig[];
+}): RuleDefinition[] {
+  return input.rules.map((rule) =>
+    buildAutoResponseRule({
+      guildId: input.guildId,
+      config: rule
+    })
+  );
+}
+
 export function isAutoResponseConfig(value: unknown): value is AutoResponseConfig {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return false;
@@ -140,4 +186,56 @@ export function isAutoResponseConfig(value: unknown): value is AutoResponseConfi
     typeof candidate.mentionAuthor === "boolean" &&
     (candidate.channelId === undefined || typeof candidate.channelId === "string")
   );
+}
+
+export function isAutoResponseRuleConfig(value: unknown): value is AutoResponseRuleConfig {
+  if (!isAutoResponseConfig(value)) {
+    return false;
+  }
+
+  const candidate = value as Partial<AutoResponseRuleConfig>;
+  return typeof candidate.id === "string" && typeof candidate.enabled === "boolean";
+}
+
+export function isAutoResponsePluginConfig(
+  value: unknown
+): value is AutoResponsePluginConfig {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+
+  const candidate = value as Partial<AutoResponsePluginConfig>;
+  return Array.isArray(candidate.rules) && candidate.rules.every(isAutoResponseRuleConfig);
+}
+
+export function autoResponseConfigFromRule(
+  rule: RuleDefinition
+): AutoResponseRuleConfig | undefined {
+  const keywordCondition = rule.conditions.find(
+    (condition) => condition.type === "keyword"
+  );
+  const channelCondition = rule.conditions.find(
+    (condition) => condition.type === "channel"
+  );
+  const replyAction = rule.actions.find((action) => action.type === "reply");
+
+  if (!keywordCondition || !replyAction) {
+    return undefined;
+  }
+
+  const ruleId = rule.id.startsWith(`${AUTO_RESPONSE_PLUGIN_ID}:`)
+    ? rule.id.split(":").at(-1) ?? rule.id
+    : rule.id;
+
+  return {
+    id: ruleId,
+    enabled: rule.enabled,
+    keyword: keywordCondition.value,
+    response: replyAction.content,
+    cooldownSeconds: rule.cooldown?.seconds ?? 0,
+    mentionAuthor: replyAction.mentionAuthor ?? false,
+    ...(channelCondition?.channelIds[0]
+      ? { channelId: channelCondition.channelIds[0] }
+      : {})
+  };
 }

@@ -436,7 +436,10 @@ button:disabled {
 .autoresponse-header,
 .autoresponse-preview,
 .switch-row,
-.check-row {
+.check-row,
+.autoresponse-actions,
+.rule-card-header,
+.rule-card-actions {
   display: flex;
   align-items: center;
 }
@@ -468,6 +471,56 @@ button:disabled {
   color: var(--accent-strong);
   font-size: 13px;
   font-weight: 700;
+}
+
+.autoresponse-actions,
+.rule-card-actions {
+  gap: 10px;
+}
+
+.autoresponse-rule-list {
+  display: grid;
+  gap: 12px;
+}
+
+.autoresponse-rule-card {
+  display: grid;
+  gap: 14px;
+  border: 1px solid rgba(171, 198, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(7, 11, 24, 0.44);
+  padding: 14px;
+}
+
+.rule-card-header {
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.rule-card-header div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.rule-card-header strong {
+  font-size: 14px;
+}
+
+.rule-card-header span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.danger-icon-button {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid rgba(255, 120, 120, 0.2);
+  border-radius: 8px;
+  background: rgba(255, 120, 120, 0.08);
+  color: #ffb7b7;
+  cursor: pointer;
 }
 
 .switch-row input,
@@ -884,9 +937,15 @@ button:disabled {
   }
 
   .autoresponse-header,
-  .autoresponse-preview {
+  .autoresponse-preview,
+  .rule-card-header {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .autoresponse-actions,
+  .rule-card-actions {
+    justify-content: space-between;
   }
 
   .rule-row { grid-template-columns: 1fr; }
