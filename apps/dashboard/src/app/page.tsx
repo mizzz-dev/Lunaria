@@ -18,6 +18,7 @@ import {
   Plus,
   Plug,
   RadioTower,
+  RefreshCw,
   Save,
   Search,
   ShieldCheck,
@@ -65,13 +66,6 @@ const rules = [
     action: "moderation review",
     state: "Draft"
   }
-];
-
-const auditItems = [
-  "Quote plugin enabled for ivRooom",
-  "Guild command /lunaria ping verified",
-  "Redis cache connected on 16379",
-  "PostgreSQL healthy on 15432"
 ];
 
 const copy = {
@@ -133,6 +127,15 @@ type AutoResponseState = {
   rules: AutoResponseRuleState[];
 };
 
+type AuditLogItem = {
+  id: string;
+  pluginId: string;
+  type: string;
+  actorUserId: string;
+  targetId?: string;
+  createdAt: string;
+};
+
 function createAutoResponseRule(
   overrides: Partial<AutoResponseRuleState> = {}
 ): AutoResponseRuleState {
@@ -164,6 +167,10 @@ export default function DashboardPage() {
     useState<AutoResponseState>(defaultAutoResponse);
   const [autoResponseStatus, setAutoResponseStatus] = useState<
     "idle" | "loading" | "saving" | "saved" | "error"
+  >("idle");
+  const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>([]);
+  const [auditStatus, setAuditStatus] = useState<
+    "idle" | "loading" | "error"
   >("idle");
   const t = copy[locale];
 
@@ -229,7 +236,31 @@ export default function DashboardPage() {
       body: JSON.stringify(autoResponse)
     });
 
-    setAutoResponseStatus(response.ok ? "saved" : "error");
+    if (response.ok) {
+      setAutoResponseStatus("saved");
+      await loadAuditLogs(selectedGuildId);
+    } else {
+      setAutoResponseStatus("error");
+    }
+  }
+
+  async function loadAuditLogs(guildId: string) {
+    setAuditStatus("loading");
+
+    try {
+      const response = await fetch(`/api/guilds/${guildId}/audit-logs`);
+
+      if (!response.ok) {
+        throw new Error("Audit request failed");
+      }
+
+      const data = (await response.json()) as { logs: AuditLogItem[] };
+      setAuditLogs(data.logs);
+      setAuditStatus("idle");
+    } catch {
+      setAuditLogs([]);
+      setAuditStatus("error");
+    }
   }
 
   useEffect(() => {
@@ -281,6 +312,16 @@ export default function DashboardPage() {
         setAutoResponseStatus("idle");
       })
       .catch(() => setAutoResponseStatus("error"));
+  }, [me?.authenticated, selectedGuildId]);
+
+  useEffect(() => {
+    if (!selectedGuildId || !me?.authenticated) {
+      setAuditLogs([]);
+      setAuditStatus("idle");
+      return;
+    }
+
+    void loadAuditLogs(selectedGuildId);
   }, [me?.authenticated, selectedGuildId]);
 
   const selectedGuild = me?.guilds.find((guild) => guild.id === selectedGuildId);
@@ -650,15 +691,58 @@ export default function DashboardPage() {
             <div className="panel-header">
               <div>
                 <h2>Audit Stream</h2>
-                <p>Recent safe-change ledger.</p>
+                <p>
+                  {locale === "ja"
+                    ? "直近25件の設定変更とルール発火ログ。"
+                    : "Latest 25 configuration and rule activity events."}
+                </p>
               </div>
-              <FileClock size={19} />
+              <button
+                aria-label={locale === "ja" ? "監査ログを更新" : "Refresh audit logs"}
+                className="audit-refresh"
+                type="button"
+                disabled={!selectedGuildId || !me?.authenticated || auditStatus === "loading"}
+                onClick={() => selectedGuildId && void loadAuditLogs(selectedGuildId)}
+              >
+                <RefreshCw size={17} />
+              </button>
             </div>
-            <ol className="audit-list">
-              {auditItems.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ol>
+            {!me?.authenticated ? (
+              <p className="audit-empty">
+                {locale === "ja"
+                  ? "Discordに接続すると監査ログを表示できます。"
+                  : "Connect Discord to view audit logs."}
+              </p>
+            ) : auditStatus === "loading" ? (
+              <p className="audit-empty">
+                {locale === "ja" ? "監査ログを読み込んでいます。" : "Loading audit logs."}
+              </p>
+            ) : auditStatus === "error" ? (
+              <p className="audit-empty is-error">
+                {locale === "ja"
+                  ? "監査ログを取得できませんでした。"
+                  : "Audit logs could not be loaded."}
+              </p>
+            ) : auditLogs.length === 0 ? (
+              <p className="audit-empty">
+                {locale === "ja" ? "まだ監査ログはありません。" : "There are no audit logs yet."}
+              </p>
+            ) : (
+              <ol className="audit-list">
+                {auditLogs.map((item) => (
+                  <li className="audit-entry" key={item.id}>
+                    <div>
+                      <strong>{formatAuditEvent(item.type, locale)}</strong>
+                      <time dateTime={item.createdAt}>
+                        {formatAuditTime(item.createdAt, locale)}
+                      </time>
+                    </div>
+                    <p>{item.pluginId} / {item.actorUserId}</p>
+                    {item.targetId ? <span>target: {item.targetId}</span> : null}
+                  </li>
+                ))}
+              </ol>
+            )}
           </div>
 
           <div className="panel billing-panel">
@@ -697,6 +781,31 @@ export default function DashboardPage() {
       </section>
     </main>
   );
+}
+
+function formatAuditEvent(type: string, locale: "ja" | "en"): string {
+  const labels = {
+    "autoresponse.config.updated": {
+      ja: "AutoResponse設定を更新",
+      en: "AutoResponse settings updated"
+    },
+    "autoresponse.rule.matched": {
+      ja: "AutoResponseが返信",
+      en: "AutoResponse replied"
+    }
+  } as const;
+
+  const event = labels[type as keyof typeof labels];
+  return event?.[locale] ?? type;
+}
+
+function formatAuditTime(dateTime: string, locale: "ja" | "en"): string {
+  return new Intl.DateTimeFormat(locale === "ja" ? "ja-JP" : "en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(new Date(dateTime));
 }
 
 function MetricCard({
