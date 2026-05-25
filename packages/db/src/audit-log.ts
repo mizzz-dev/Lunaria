@@ -23,10 +23,11 @@ export class PrismaAuditLogStore implements AuditLogStore {
     return this.toDomain(created);
   }
 
-  async listByGuild(guildId: string): Promise<AuditLogRecord[]> {
+  async listByGuild(guildId: string, limit?: number): Promise<AuditLogRecord[]> {
     const records = await this.prisma.auditLog.findMany({
       where: { guildId },
-      orderBy: { createdAt: "desc" }
+      orderBy: { createdAt: "desc" },
+      ...(typeof limit === "number" ? { take: limit } : {})
     });
 
     return records.map((record) => this.toDomain(record));
