@@ -65,16 +65,15 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     const rules = storedRules
       .map((rule) => autoResponseConfigFromRule(rule))
       .filter((rule): rule is AutoResponseRuleConfig => Boolean(rule));
-    const configRules: readonly AutoResponseRuleConfig[] = isAutoResponsePluginConfig(
-      config
-    )
+    const hasStoredConfig = isAutoResponsePluginConfig(config);
+    const configRules: readonly AutoResponseRuleConfig[] = hasStoredConfig
       ? config.rules
       : [];
 
     return NextResponse.json({
       configured: Boolean(settings),
       enabled: settings?.enabled ?? false,
-      rules: configRules.length > 0 ? configRules : rules
+      rules: hasStoredConfig ? configRules : rules
     });
   } catch (error) {
     return authErrorResponse(error);
