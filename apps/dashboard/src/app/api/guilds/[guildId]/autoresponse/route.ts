@@ -3,7 +3,9 @@ import {
   autoResponseConfigFromRule,
   autoResponsePlugin,
   buildAutoResponseRules,
+  diffAutoResponseConfig,
   GuildPluginService,
+  hasAutoResponseConfigChanges,
   isAutoResponsePluginConfig,
   PluginRegistry,
   type AutoResponsePluginConfig,
@@ -70,8 +72,9 @@ export async function GET(_request: NextRequest, context: RouteContext) {
       : [];
 
     return NextResponse.json({
+      configured: Boolean(settings),
       enabled: settings?.enabled ?? false,
-      rules: rules.length > 0 ? rules : configRules
+      rules: configRules.length > 0 ? configRules : rules
     });
   } catch (error) {
     return authErrorResponse(error);
@@ -84,7 +87,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
   try {
     const session = await requireManageableGuild(guildId);
     const input = autoResponseInputSchema.parse(await request.json());
-    const rules = input.rules.map((rule, index): AutoResponseRuleConfig => ({
+    const rules = input.rules.map((rule): AutoResponseRuleConfig => ({
       id: rule.id || crypto.randomUUID(),
       enabled: rule.enabled,
       keyword: rule.keyword,
@@ -96,8 +99,41 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const config: AutoResponsePluginConfig = { rules };
 
     const pluginService = createPluginService();
+    const settingsStore = new PrismaGuildPluginSettingsStore(prisma);
     const ruleStore = new PrismaRuleStore(prisma);
     const auditLogStore = new PrismaAuditLogStore(prisma);
+    const previousSettings = await settingsStore.get(guildId, AUTO_RESPONSE_PLUGIN_ID);
+    const previousStoredRules = await ruleStore.listByGuildPlugin(
+      guildId,
+      AUTO_RESPONSE_PLUGIN_ID
+    );
+    const previousRulesFromStore = previousStoredRules
+      .map((rule) => autoResponseConfigFromRule(rule))
+      .filter((rule): rule is AutoResponseRuleConfig => Boolean(rule));
+    const previousConfigRules = isAutoResponsePluginConfig(previousSettings?.config)
+      ? previousSettings.config.rules
+      : previousRulesFromStore;
+    const diff = diffAutoResponseConfig(
+      previousSettings
+        ? {
+            enabled: previousSettings.enabled,
+            rules: previousConfigRules
+          }
+        : undefined,
+      {
+        enabled: input.enabled,
+        rules
+      }
+    );
+
+    if (previousSettings && !hasAutoResponseConfigChanges(diff)) {
+      return NextResponse.json({
+        ok: true,
+        changed: false,
+        settings: previousSettings,
+        rules: previousStoredRules
+      });
+    }
 
     const settings = await pluginService.setEnabled({
       guildId,
@@ -125,6 +161,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
       type: "autoresponse.config.updated",
       actorUserId: session.user.id,
       data: {
+        created: diff.created,
+        ...(diff.enabled ? { enabledChange: diff.enabled } : {}),
+        ruleChanges: diff.ruleChanges,
         enabled: input.enabled,
         ruleCount: rules.length,
         enabledRuleCount: rules.filter((rule) => rule.enabled).length
@@ -133,8 +172,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json({
       ok: true,
+      changed: true,
       settings,
-      rules: savedRules
+      rules: savedRules,
+      diff
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

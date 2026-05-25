@@ -20,6 +20,36 @@ export interface AutoResponsePluginConfig extends JsonObject {
   readonly rules: readonly AutoResponseRuleConfig[];
 }
 
+export interface AutoResponseSettingsSnapshot {
+  readonly enabled: boolean;
+  readonly rules: readonly AutoResponseRuleConfig[];
+}
+
+export type AutoResponseRuleField =
+  | "enabled"
+  | "keyword"
+  | "response"
+  | "channelId"
+  | "cooldownSeconds"
+  | "mentionAuthor";
+
+export interface AutoResponseRuleChange {
+  readonly kind: "added" | "removed" | "updated";
+  readonly ruleId: string;
+  readonly fields: readonly AutoResponseRuleField[];
+  readonly before?: AutoResponseRuleConfig;
+  readonly after?: AutoResponseRuleConfig;
+}
+
+export interface AutoResponseConfigDiff extends JsonObject {
+  readonly created: boolean;
+  readonly enabled?: {
+    readonly before: boolean | null;
+    readonly after: boolean;
+  };
+  readonly ruleChanges: readonly AutoResponseRuleChange[];
+}
+
 export const autoResponsePlugin: PluginMetadata = {
   id: AUTO_RESPONSE_PLUGIN_ID,
   name: "AutoResponse",
@@ -171,6 +201,80 @@ export function buildAutoResponseRules(input: {
       config: rule
     })
   );
+}
+
+const autoResponseRuleFields: readonly AutoResponseRuleField[] = [
+  "enabled",
+  "keyword",
+  "response",
+  "channelId",
+  "cooldownSeconds",
+  "mentionAuthor"
+];
+
+export function diffAutoResponseConfig(
+  before: AutoResponseSettingsSnapshot | undefined,
+  after: AutoResponseSettingsSnapshot
+): AutoResponseConfigDiff {
+  const beforeRules = new Map(before?.rules.map((rule) => [rule.id, rule]));
+  const afterRules = new Map(after.rules.map((rule) => [rule.id, rule]));
+  const ruleChanges: AutoResponseRuleChange[] = [];
+
+  for (const rule of after.rules) {
+    const previousRule = beforeRules.get(rule.id);
+
+    if (!previousRule) {
+      ruleChanges.push({
+        kind: "added",
+        ruleId: rule.id,
+        fields: autoResponseRuleFields,
+        after: rule
+      });
+      continue;
+    }
+
+    const fields = autoResponseRuleFields.filter(
+      (field) => previousRule[field] !== rule[field]
+    );
+
+    if (fields.length > 0) {
+      ruleChanges.push({
+        kind: "updated",
+        ruleId: rule.id,
+        fields,
+        before: previousRule,
+        after: rule
+      });
+    }
+  }
+
+  for (const rule of before?.rules ?? []) {
+    if (!afterRules.has(rule.id)) {
+      ruleChanges.push({
+        kind: "removed",
+        ruleId: rule.id,
+        fields: autoResponseRuleFields,
+        before: rule
+      });
+    }
+  }
+
+  return {
+    created: before === undefined,
+    ...(before === undefined || before.enabled !== after.enabled
+      ? {
+          enabled: {
+            before: before?.enabled ?? null,
+            after: after.enabled
+          }
+        }
+      : {}),
+    ruleChanges
+  };
+}
+
+export function hasAutoResponseConfigChanges(diff: AutoResponseConfigDiff): boolean {
+  return diff.created || Boolean(diff.enabled) || diff.ruleChanges.length > 0;
 }
 
 export function isAutoResponseConfig(value: unknown): value is AutoResponseConfig {

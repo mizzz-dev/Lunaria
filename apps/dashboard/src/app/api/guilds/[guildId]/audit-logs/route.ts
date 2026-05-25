@@ -10,13 +10,26 @@ type RouteContext = {
 
 export async function GET(_request: NextRequest, context: RouteContext) {
   const { guildId } = await context.params;
+  const category = _request.nextUrl.searchParams.get("category") ?? "all";
+
+  if (!["all", "configuration", "activity"].includes(category)) {
+    return NextResponse.json({ error: "INVALID_CATEGORY" }, { status: 400 });
+  }
 
   try {
     await requireManageableGuild(guildId);
     const auditLogStore = new PrismaAuditLogStore(prisma);
-    const logs = await auditLogStore.listByGuild(guildId, 25);
+    const logs = await auditLogStore.listByGuild(guildId, {
+      limit: 25,
+      ...(category === "configuration"
+        ? { type: "autoresponse.config.updated" }
+        : category === "activity"
+          ? { type: "autoresponse.rule.matched" }
+          : {})
+    });
 
     return NextResponse.json({
+      category,
       logs: logs.map((log) => ({
         ...log,
         createdAt: log.createdAt.toISOString()
