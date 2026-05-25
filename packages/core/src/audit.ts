@@ -17,9 +17,15 @@ export interface AuditLogRecord {
   readonly createdAt: Date;
 }
 
+export interface AuditLogQuery {
+  readonly limit?: number;
+  readonly pluginId?: string;
+  readonly type?: string;
+}
+
 export interface AuditLogStore {
   append(record: Omit<AuditLogRecord, "id" | "createdAt">): Promise<AuditLogRecord>;
-  listByGuild(guildId: string, limit?: number): Promise<AuditLogRecord[]>;
+  listByGuild(guildId: string, query?: number | AuditLogQuery): Promise<AuditLogRecord[]>;
 }
 
 export class InMemoryAuditLogStore implements AuditLogStore {
@@ -36,8 +42,19 @@ export class InMemoryAuditLogStore implements AuditLogStore {
     return next;
   }
 
-  async listByGuild(guildId: string, limit?: number): Promise<AuditLogRecord[]> {
-    const records = this.records.filter((record) => record.guildId === guildId).reverse();
-    return typeof limit === "number" ? records.slice(0, limit) : records;
+  async listByGuild(
+    guildId: string,
+    query?: number | AuditLogQuery
+  ): Promise<AuditLogRecord[]> {
+    const options = typeof query === "number" ? { limit: query } : query;
+    const records = this.records
+      .filter(
+        (record) =>
+          record.guildId === guildId &&
+          (!options?.pluginId || record.pluginId === options.pluginId) &&
+          (!options?.type || record.type === options.type)
+      )
+      .reverse();
+    return typeof options?.limit === "number" ? records.slice(0, options.limit) : records;
   }
 }

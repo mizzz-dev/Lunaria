@@ -1,4 +1,4 @@
-import type { AuditLogRecord, AuditLogStore } from "@lunaria/core";
+import type { AuditLogQuery, AuditLogRecord, AuditLogStore } from "@lunaria/core";
 import type { PrismaClient } from "@prisma/client";
 import { ensureGuild } from "./guilds.js";
 import { toInputJson, toJsonObject } from "./json.js";
@@ -23,11 +23,19 @@ export class PrismaAuditLogStore implements AuditLogStore {
     return this.toDomain(created);
   }
 
-  async listByGuild(guildId: string, limit?: number): Promise<AuditLogRecord[]> {
+  async listByGuild(
+    guildId: string,
+    query?: number | AuditLogQuery
+  ): Promise<AuditLogRecord[]> {
+    const options = typeof query === "number" ? { limit: query } : query;
     const records = await this.prisma.auditLog.findMany({
-      where: { guildId },
+      where: {
+        guildId,
+        ...(options?.pluginId ? { pluginId: options.pluginId } : {}),
+        ...(options?.type ? { type: options.type } : {})
+      },
       orderBy: { createdAt: "desc" },
-      ...(typeof limit === "number" ? { take: limit } : {})
+      ...(typeof options?.limit === "number" ? { take: options.limit } : {})
     });
 
     return records.map((record) => this.toDomain(record));

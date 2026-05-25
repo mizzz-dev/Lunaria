@@ -827,6 +827,27 @@ button:disabled {
   cursor: pointer;
 }
 
+.audit-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.audit-filter {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(13, 19, 39, 0.78);
+  color: var(--muted);
+  padding: 10px 9px;
+  font: inherit;
+  font-size: 12px;
+}
+
+.audit-filter:focus {
+  border-color: var(--line-strong);
+  outline: none;
+}
+
 .audit-refresh:hover:not(:disabled) {
   color: var(--text);
   border-color: var(--line-strong);
@@ -870,6 +891,14 @@ button:disabled {
 .audit-entry p {
   margin: 0;
   overflow-wrap: anywhere;
+}
+
+.audit-entry .audit-diff {
+  border-radius: 6px;
+  background: rgba(116, 232, 255, 0.07);
+  color: var(--cyan);
+  padding: 6px 8px;
+  line-height: 1.45;
 }
 
 .audit-empty {

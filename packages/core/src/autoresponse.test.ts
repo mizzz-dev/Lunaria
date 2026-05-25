@@ -4,7 +4,9 @@ import {
   autoResponsePlugin,
   autoResponseRuleId,
   buildAutoResponseRules,
-  buildAutoResponseRule
+  buildAutoResponseRule,
+  diffAutoResponseConfig,
+  hasAutoResponseConfigChanges
 } from "./autoresponse.js";
 import { PluginRegistry } from "./plugins.js";
 
@@ -107,5 +109,82 @@ describe("AutoResponse plugin", () => {
       "autoresponse:guild-1:bye"
     ]);
     expect(rules[1]?.enabled).toBe(false);
+  });
+
+  it("records added, removed and edited rule fields in a config diff", () => {
+    const diff = diffAutoResponseConfig(
+      {
+        enabled: true,
+        rules: [
+          {
+            id: "hello",
+            enabled: true,
+            keyword: "hello",
+            response: "world",
+            cooldownSeconds: 0,
+            mentionAuthor: false
+          },
+          {
+            id: "old",
+            enabled: true,
+            keyword: "old",
+            response: "gone",
+            cooldownSeconds: 0,
+            mentionAuthor: false
+          }
+        ]
+      },
+      {
+        enabled: false,
+        rules: [
+          {
+            id: "hello",
+            enabled: true,
+            keyword: "hello",
+            response: "moon",
+            cooldownSeconds: 10,
+            mentionAuthor: false
+          },
+          {
+            id: "new",
+            enabled: true,
+            keyword: "new",
+            response: "awake",
+            cooldownSeconds: 0,
+            mentionAuthor: true
+          }
+        ]
+      }
+    );
+
+    expect(diff.enabled).toEqual({ before: true, after: false });
+    expect(diff.ruleChanges.map((change) => [change.kind, change.ruleId])).toEqual([
+      ["updated", "hello"],
+      ["added", "new"],
+      ["removed", "old"]
+    ]);
+    expect(diff.ruleChanges[0]?.fields).toEqual(["response", "cooldownSeconds"]);
+    expect(hasAutoResponseConfigChanges(diff)).toBe(true);
+  });
+
+  it("recognizes a repeated save as unchanged", () => {
+    const snapshot = {
+      enabled: true,
+      rules: [
+        {
+          id: "hello",
+          enabled: true,
+          keyword: "hello",
+          response: "world",
+          cooldownSeconds: 0,
+          mentionAuthor: false
+        }
+      ]
+    };
+
+    const diff = diffAutoResponseConfig(snapshot, snapshot);
+
+    expect(diff).toEqual({ created: false, ruleChanges: [] });
+    expect(hasAutoResponseConfigChanges(diff)).toBe(false);
   });
 });

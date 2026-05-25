@@ -133,8 +133,22 @@ type AuditLogItem = {
   type: string;
   actorUserId: string;
   targetId?: string;
+  data?: {
+    enabledChange?: {
+      before: boolean | null;
+      after: boolean;
+    };
+    ruleChanges?: Array<{
+      kind: "added" | "removed" | "updated";
+      ruleId: string;
+      fields: string[];
+    }>;
+    keyword?: string;
+  };
   createdAt: string;
 };
+
+type AuditCategory = "all" | "configuration" | "activity";
 
 function createAutoResponseRule(
   overrides: Partial<AutoResponseRuleState> = {}
@@ -166,12 +180,13 @@ export default function DashboardPage() {
   const [autoResponse, setAutoResponse] =
     useState<AutoResponseState>(defaultAutoResponse);
   const [autoResponseStatus, setAutoResponseStatus] = useState<
-    "idle" | "loading" | "saving" | "saved" | "error"
+    "idle" | "loading" | "saving" | "saved" | "unchanged" | "error"
   >("idle");
   const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>([]);
   const [auditStatus, setAuditStatus] = useState<
     "idle" | "loading" | "error"
   >("idle");
+  const [auditCategory, setAuditCategory] = useState<AuditCategory>("all");
   const t = copy[locale];
 
   function handleGuildChange(event: ChangeEvent<HTMLSelectElement>) {
@@ -237,18 +252,21 @@ export default function DashboardPage() {
     });
 
     if (response.ok) {
-      setAutoResponseStatus("saved");
-      await loadAuditLogs(selectedGuildId);
+      const result = (await response.json()) as { changed?: boolean };
+      setAutoResponseStatus(result.changed === false ? "unchanged" : "saved");
+      await loadAuditLogs(selectedGuildId, auditCategory);
     } else {
       setAutoResponseStatus("error");
     }
   }
 
-  async function loadAuditLogs(guildId: string) {
+  async function loadAuditLogs(guildId: string, category: AuditCategory) {
     setAuditStatus("loading");
 
     try {
-      const response = await fetch(`/api/guilds/${guildId}/audit-logs`);
+      const response = await fetch(
+        `/api/guilds/${guildId}/audit-logs?category=${category}`
+      );
 
       if (!response.ok) {
         throw new Error("Audit request failed");
@@ -291,7 +309,7 @@ export default function DashboardPage() {
       .then((response) => response.json())
       .then((data) => {
         const rules =
-          Array.isArray(data.rules) && data.rules.length > 0
+          Array.isArray(data.rules) && (data.rules.length > 0 || data.configured)
             ? data.rules.map((rule: Partial<AutoResponseRuleState>) =>
                 createAutoResponseRule({
                   ...(rule.id ? { id: rule.id } : {}),
@@ -321,8 +339,8 @@ export default function DashboardPage() {
       return;
     }
 
-    void loadAuditLogs(selectedGuildId);
-  }, [me?.authenticated, selectedGuildId]);
+    void loadAuditLogs(selectedGuildId, auditCategory);
+  }, [auditCategory, me?.authenticated, selectedGuildId]);
 
   const selectedGuild = me?.guilds.find((guild) => guild.id === selectedGuildId);
 
@@ -638,6 +656,9 @@ export default function DashboardPage() {
           {autoResponseStatus === "saved" ? (
             <p className="form-message success">AutoResponse設定を保存しました。</p>
           ) : null}
+          {autoResponseStatus === "unchanged" ? (
+            <p className="form-message success">変更はありません。監査ログは追加されませんでした。</p>
+          ) : null}
           {autoResponseStatus === "error" ? (
             <p className="form-message error">
               AutoResponse設定の読み込みまたは保存に失敗しました。
@@ -697,15 +718,33 @@ export default function DashboardPage() {
                     : "Latest 25 configuration and rule activity events."}
                 </p>
               </div>
-              <button
-                aria-label={locale === "ja" ? "監査ログを更新" : "Refresh audit logs"}
-                className="audit-refresh"
-                type="button"
-                disabled={!selectedGuildId || !me?.authenticated || auditStatus === "loading"}
-                onClick={() => selectedGuildId && void loadAuditLogs(selectedGuildId)}
-              >
-                <RefreshCw size={17} />
-              </button>
+              <div className="audit-controls">
+                <select
+                  aria-label={locale === "ja" ? "監査ログの種類" : "Audit event category"}
+                  className="audit-filter"
+                  value={auditCategory}
+                  onChange={(event) =>
+                    setAuditCategory(event.currentTarget.value as AuditCategory)
+                  }
+                >
+                  <option value="all">{locale === "ja" ? "すべて" : "All events"}</option>
+                  <option value="configuration">
+                    {locale === "ja" ? "設定変更" : "Configuration"}
+                  </option>
+                  <option value="activity">{locale === "ja" ? "返信実行" : "Replies"}</option>
+                </select>
+                <button
+                  aria-label={locale === "ja" ? "監査ログを更新" : "Refresh audit logs"}
+                  className="audit-refresh"
+                  type="button"
+                  disabled={!selectedGuildId || !me?.authenticated || auditStatus === "loading"}
+                  onClick={() =>
+                    selectedGuildId && void loadAuditLogs(selectedGuildId, auditCategory)
+                  }
+                >
+                  <RefreshCw size={17} />
+                </button>
+              </div>
             </div>
             {!me?.authenticated ? (
               <p className="audit-empty">
@@ -729,18 +768,23 @@ export default function DashboardPage() {
               </p>
             ) : (
               <ol className="audit-list">
-                {auditLogs.map((item) => (
-                  <li className="audit-entry" key={item.id}>
-                    <div>
-                      <strong>{formatAuditEvent(item.type, locale)}</strong>
-                      <time dateTime={item.createdAt}>
-                        {formatAuditTime(item.createdAt, locale)}
-                      </time>
-                    </div>
-                    <p>{item.pluginId} / {item.actorUserId}</p>
-                    {item.targetId ? <span>target: {item.targetId}</span> : null}
-                  </li>
-                ))}
+                {auditLogs.map((item) => {
+                  const summary = formatAuditSummary(item, locale);
+
+                  return (
+                    <li className="audit-entry" key={item.id}>
+                      <div>
+                        <strong>{formatAuditEvent(item.type, locale)}</strong>
+                        <time dateTime={item.createdAt}>
+                          {formatAuditTime(item.createdAt, locale)}
+                        </time>
+                      </div>
+                      {summary ? <span className="audit-diff">{summary}</span> : null}
+                      <p>{item.pluginId} / {item.actorUserId}</p>
+                      {item.targetId ? <span>target: {item.targetId}</span> : null}
+                    </li>
+                  );
+                })}
               </ol>
             )}
           </div>
@@ -806,6 +850,59 @@ function formatAuditTime(dateTime: string, locale: "ja" | "en"): string {
     hour: "2-digit",
     minute: "2-digit"
   }).format(new Date(dateTime));
+}
+
+function formatAuditSummary(item: AuditLogItem, locale: "ja" | "en"): string | undefined {
+  if (item.type === "autoresponse.rule.matched" && item.data?.keyword) {
+    return locale === "ja"
+      ? `キーワード: ${item.data.keyword}`
+      : `Keyword: ${item.data.keyword}`;
+  }
+
+  if (item.type !== "autoresponse.config.updated") {
+    return undefined;
+  }
+
+  const fragments: string[] = [];
+  const enabledChange = item.data?.enabledChange;
+
+  if (enabledChange) {
+    const before = enabledChange.before === null
+      ? locale === "ja" ? "未設定" : "Not configured"
+      : formatEnabled(enabledChange.before, locale);
+    fragments.push(
+      locale === "ja"
+        ? `状態: ${before} -> ${formatEnabled(enabledChange.after, locale)}`
+        : `Status: ${before} -> ${formatEnabled(enabledChange.after, locale)}`
+    );
+  }
+
+  const ruleChanges = item.data?.ruleChanges ?? [];
+  const counts = {
+    added: ruleChanges.filter((change) => change.kind === "added").length,
+    updated: ruleChanges.filter((change) => change.kind === "updated").length,
+    removed: ruleChanges.filter((change) => change.kind === "removed").length
+  };
+
+  if (counts.added > 0) {
+    fragments.push(locale === "ja" ? `追加 ${counts.added}` : `${counts.added} added`);
+  }
+  if (counts.updated > 0) {
+    fragments.push(locale === "ja" ? `変更 ${counts.updated}` : `${counts.updated} edited`);
+  }
+  if (counts.removed > 0) {
+    fragments.push(locale === "ja" ? `削除 ${counts.removed}` : `${counts.removed} removed`);
+  }
+
+  return fragments.length > 0 ? fragments.join(" / ") : undefined;
+}
+
+function formatEnabled(enabled: boolean, locale: "ja" | "en"): string {
+  if (locale === "ja") {
+    return enabled ? "有効" : "無効";
+  }
+
+  return enabled ? "Enabled" : "Disabled";
 }
 
 function MetricCard({
