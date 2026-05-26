@@ -16,6 +16,7 @@ model Guild {
   rules           Rule[]
   auditLogs       AuditLog[]
   rbacAssignments RbacAssignment[]
+  quotes          Quote[]
 }
 
 model PluginSetting {
@@ -78,4 +79,26 @@ model RbacAssignment {
 
   @@unique([guildId, userId, roleKey])
   @@index([guildId, userId])
+}
+
+model Quote {
+  id                 String    @id @default(cuid())
+  guildId            String
+  content            String
+  sourceMessageId    String
+  sourceMessageUrl   String
+  sourceAuthorId     String
+  sourceAuthorName   String
+  sourceChannelId    String
+  sourceChannelName  String
+  sourceCreatedAt    DateTime
+  registeredByUserId String
+  hiddenAt           DateTime?
+  hiddenByUserId     String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  guild              Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, sourceMessageId])
+  @@index([guildId, hiddenAt, createdAt])
 }

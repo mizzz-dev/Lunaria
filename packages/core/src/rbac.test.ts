@@ -24,5 +24,17 @@ describe("RBAC", () => {
 
     expect(hasPermission(viewer, "dashboard:read")).toBe(true);
     expect(hasPermission(viewer, "plugins:write")).toBe(false);
+    expect(hasPermission(viewer, "quotes:create")).toBe(false);
+  });
+
+  it("allows moderators to register and manage quotes", () => {
+    const moderator = {
+      guildId: "guild-1",
+      userId: "moderator-1",
+      roleKeys: ["moderator"] as const
+    };
+
+    expect(hasPermission(moderator, "quotes:create")).toBe(true);
+    expect(hasPermission(moderator, "quotes:manage")).toBe(true);
   });
 });
