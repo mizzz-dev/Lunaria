@@ -1,7 +1,11 @@
 import type { QuoteRecord } from "@lunaria/core";
-import type { ChatInputCommandInteraction } from "discord.js";
+import {
+  ApplicationCommandType,
+  type ChatInputCommandInteraction,
+  type MessageContextMenuCommandInteraction
+} from "discord.js";
 import { describe, expect, it, vi } from "vitest";
-import { createQuoteCommand } from "./quote.js";
+import { createQuoteCommand, createQuoteMessageCommand } from "./quote.js";
 
 const date = new Date("2026-05-26T01:00:00.000Z");
 const record: QuoteRecord = {
@@ -133,6 +137,50 @@ describe("quote command", () => {
     expect(quoteService.add).not.toHaveBeenCalled();
     expect(reply).toHaveBeenCalledWith(
       expect.objectContaining({ content: "このquote操作を行う権限がありません。" })
+    );
+  });
+
+  it("registers a message application command for direct quote capture", () => {
+    const commandJson = createQuoteMessageCommand(service()).data.toJSON();
+
+    expect(commandJson).toMatchObject({
+      name: "Quoteに登録",
+      type: ApplicationCommandType.Message
+    });
+  });
+
+  it("adds the selected message through the application command", async () => {
+    const quoteService = service();
+    const command = createQuoteMessageCommand(quoteService);
+    const reply = vi.fn();
+    const interaction = {
+      guildId: "guild-1",
+      guild: { ownerId: "other-user" },
+      user: { id: "moderator-1" },
+      memberPermissions: { has: vi.fn().mockReturnValue(true) },
+      targetMessage: {
+        id: "message-1",
+        guildId: "guild-1",
+        content: "A good quote.",
+        url: record.sourceMessageUrl,
+        author: { id: "author-1", globalName: "Author", username: "author" },
+        channelId: "channel-1",
+        channel: { name: "general" },
+        createdAt: date
+      },
+      reply
+    } as unknown as MessageContextMenuCommandInteraction;
+
+    await command.execute(interaction);
+
+    expect(quoteService.add).toHaveBeenCalledWith(
+      expect.objectContaining({
+        guildId: "guild-1",
+        quote: expect.objectContaining({ sourceMessageId: "message-1" })
+      })
+    );
+    expect(reply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: "Quoteを登録しました: `quote-1`" })
     );
   });
 });

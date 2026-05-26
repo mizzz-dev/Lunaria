@@ -7,14 +7,20 @@ import {
 } from "@lunaria/core";
 import { prisma, PrismaAuditLogStore, PrismaQuoteStore } from "@lunaria/db";
 import {
+  ApplicationCommandType,
   ChatInputCommandInteraction,
+  ContextMenuCommandBuilder,
   EmbedBuilder,
+  MessageContextMenuCommandInteraction,
   PermissionFlagsBits,
   SlashCommandBuilder,
   type Message
 } from "discord.js";
 
 type QuoteCommandService = Pick<QuoteService, "add" | "hide" | "randomVisible">;
+type QuoteManagementInteraction =
+  | ChatInputCommandInteraction
+  | MessageContextMenuCommandInteraction;
 
 export function createQuoteCommand(service: QuoteCommandService) {
   return {
@@ -76,24 +82,7 @@ export function createQuoteCommand(service: QuoteCommandService) {
             interaction.options.getString("message-url", true),
             guildId
           );
-          const quote = await service.add({
-            actor,
-            guildId,
-            quote: {
-              content: source.content,
-              sourceMessageId: source.id,
-              sourceMessageUrl: source.url,
-              sourceAuthorId: source.author.id,
-              sourceAuthorName: source.author.globalName ?? source.author.username,
-              sourceChannelId: source.channelId,
-              sourceChannelName: channelName(source),
-              sourceCreatedAt: source.createdAt
-            }
-          });
-          await interaction.reply({
-            content: `Quoteを登録しました: \`${quote.id}\``,
-            ephemeral: true
-          });
+          await addQuoteFromMessage(service, interaction, guildId, actor, source);
           return;
         }
 
@@ -109,6 +98,7 @@ export function createQuoteCommand(service: QuoteCommandService) {
 
         await interaction.reply({ content: "未知のquote操作です。", ephemeral: true });
       } catch (error) {
+        logUnexpectedQuoteError(error);
         await interaction.reply({
           content: commandErrorMessage(error),
           ephemeral: true
@@ -118,7 +108,71 @@ export function createQuoteCommand(service: QuoteCommandService) {
   };
 }
 
-function quoteActor(interaction: ChatInputCommandInteraction, guildId: string): RbacActor {
+export function createQuoteMessageCommand(service: QuoteCommandService) {
+  return {
+    data: new ContextMenuCommandBuilder()
+      .setName("Quoteに登録")
+      .setType(ApplicationCommandType.Message),
+
+    async execute(interaction: MessageContextMenuCommandInteraction): Promise<void> {
+      const guildId = interaction.guildId;
+      if (!guildId) {
+        await interaction.reply({ content: "Guildでのみ利用できます。", ephemeral: true });
+        return;
+      }
+
+      try {
+        await addQuoteFromMessage(
+          service,
+          interaction,
+          guildId,
+          quoteActor(interaction, guildId),
+          interaction.targetMessage
+        );
+      } catch (error) {
+        logUnexpectedQuoteError(error);
+        await interaction.reply({
+          content: commandErrorMessage(error),
+          ephemeral: true
+        });
+      }
+    }
+  };
+}
+
+async function addQuoteFromMessage(
+  service: QuoteCommandService,
+  interaction: QuoteManagementInteraction,
+  guildId: string,
+  actor: RbacActor,
+  source: Message
+): Promise<void> {
+  if (!hasPermission(actor, "quotes:create")) {
+    throw new Error("FORBIDDEN");
+  }
+
+  const quote = await service.add({
+    actor,
+    guildId,
+    quote: {
+      content: source.content,
+      sourceMessageId: source.id,
+      sourceMessageUrl: source.url,
+      sourceAuthorId: source.author.id,
+      sourceAuthorName: source.author.globalName ?? source.author.username,
+      sourceChannelId: source.channelId,
+      sourceChannelName: channelName(source),
+      sourceCreatedAt: source.createdAt
+    }
+  });
+
+  await interaction.reply({
+    content: `Quoteを登録しました: \`${quote.id}\``,
+    ephemeral: true
+  });
+}
+
+function quoteActor(interaction: QuoteManagementInteraction, guildId: string): RbacActor {
   const isOwner = interaction.guild?.ownerId === interaction.user.id;
   const permissions = interaction.memberPermissions;
   const canAdminister =
@@ -187,9 +241,39 @@ function commandErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message === "INVALID_QUOTE_SOURCE") {
     return "同じGuildの本文付きDiscordメッセージURLを指定してください。";
   }
+  if (hasErrorCode(error, "P2002")) {
+    return "このメッセージは既にQuoteへ登録されています。";
+  }
   return "Quote操作に失敗しました。";
 }
 
+function logUnexpectedQuoteError(error: unknown): void {
+  if (
+    error instanceof Error &&
+    ["FORBIDDEN", "QUOTE_NOT_FOUND", "INVALID_QUOTE_SOURCE"].includes(error.message)
+  ) {
+    return;
+  }
+  if (hasErrorCode(error, "P2002")) {
+    return;
+  }
+
+  console.error("Failed to execute Quote command", error);
+}
+
+function hasErrorCode(error: unknown, code: string): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === code
+  );
+}
+
 export const quoteCommand = createQuoteCommand(
+  new QuoteService(new PrismaQuoteStore(prisma), new PrismaAuditLogStore(prisma))
+);
+
+export const quoteMessageCommand = createQuoteMessageCommand(
   new QuoteService(new PrismaQuoteStore(prisma), new PrismaAuditLogStore(prisma))
 );
