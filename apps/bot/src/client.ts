@@ -5,7 +5,13 @@ import {
   REST,
   type Interaction
 } from "discord.js";
-import { commands } from "./commands/index.js";
+import { lunariaCommand } from "./commands/lunaria.js";
+import {
+  handleQuoteCardButtonInteraction,
+  quoteCommand,
+  handleQuoteReplyMessage,
+  quoteMessageCommand
+} from "./commands/quote.js";
 import type { BotConfig } from "./config.js";
 import { handleMessageCreate } from "./message-rules.js";
 import { registerGuildCommands } from "./register-guild-commands.js";
@@ -24,23 +30,33 @@ export function buildBotClient(): Client {
   });
 
   client.on(Events.InteractionCreate, async (interaction: Interaction) => {
+    if (interaction.isMessageContextMenuCommand()) {
+      if (interaction.commandName === quoteMessageCommand.data.name) {
+        await quoteMessageCommand.execute(interaction);
+      }
+      return;
+    }
+
+    if (interaction.isButton() && (await handleQuoteCardButtonInteraction(interaction))) {
+      return;
+    }
+
     if (!interaction.isChatInputCommand()) {
       return;
     }
 
-    const command = commands.find(
-      (candidate) => candidate.data.name === interaction.commandName
-    );
-
-    if (!command) {
-      return;
+    if (interaction.commandName === lunariaCommand.data.name) {
+      await lunariaCommand.execute(interaction);
+    } else if (interaction.commandName === quoteCommand.data.name) {
+      await quoteCommand.execute(interaction);
     }
-
-    await command.execute(interaction);
   });
 
   client.on(Events.MessageCreate, async (message) => {
     try {
+      if (await handleQuoteReplyMessage(message)) {
+        return;
+      }
       await handleMessageCreate(message);
     } catch (error) {
       console.error("Failed to handle messageCreate rule workflow", error);
