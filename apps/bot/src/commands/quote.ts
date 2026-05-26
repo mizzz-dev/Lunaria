@@ -25,6 +25,7 @@ import {
   renderQuoteCard,
   type QuoteCardAppearance,
   type QuoteCardAvatarPosition,
+  type QuoteCardDesign,
   type QuoteCardTheme
 } from "../quote-card.js";
 
@@ -35,8 +36,9 @@ type QuoteManagementInteraction =
   | ButtonInteraction;
 
 const defaultAppearance: QuoteCardAppearance = {
-  theme: "black",
-  avatarPosition: "left"
+  theme: "color",
+  avatarPosition: "left",
+  design: "anime"
 };
 const quoteCardButtonPrefix = "quote-card";
 
@@ -55,6 +57,7 @@ export function createQuoteCommand(service: QuoteCommandService) {
               .setDescription("Discord message URL to save")
               .setRequired(true)
           )
+          .addStringOption((option) => designOption(option))
           .addStringOption((option) => themeOption(option))
           .addStringOption((option) => avatarPositionOption(option))
       )
@@ -62,6 +65,7 @@ export function createQuoteCommand(service: QuoteCommandService) {
         subcommand
           .setName("random")
           .setDescription("Show a random quote")
+          .addStringOption((option) => designOption(option))
           .addStringOption((option) => themeOption(option))
           .addStringOption((option) => avatarPositionOption(option))
       )
@@ -96,8 +100,13 @@ export function createQuoteCommand(service: QuoteCommandService) {
 
           await interaction.deferReply();
           const avatarUrl = await fetchUserAvatar(interaction, quote.sourceAuthorId);
+          const appearance = selectedAppearance(interaction);
           await interaction.editReply({
-            files: [await quoteImageAttachment(quote, avatarUrl, selectedAppearance(interaction))]
+            files: [await quoteImageAttachment(quote, avatarUrl, appearance)],
+            components: quoteCardControls(
+              { channelId: quote.sourceChannelId, id: quote.sourceMessageId },
+              appearance
+            )
           });
           return;
         }
@@ -247,7 +256,7 @@ async function createQuoteImageFromMessage(
   }
 
   const quote = {
-    content: source.content,
+    content: sourceQuoteContent(source),
     sourceMessageId: source.id,
     sourceMessageUrl: source.url,
     sourceAuthorId: source.author.id,
@@ -267,7 +276,7 @@ async function createQuoteImageFromMessage(
 
   return quoteImageAttachment(
     quote,
-    source.author.displayAvatarURL({ extension: "png", size: 512 }),
+    sourcePortraitUrl(source),
     appearance
   );
 }
@@ -344,7 +353,7 @@ async function fetchQuoteMessageById(
   }
 
   const message = await channel.messages.fetch(messageId);
-  if (message.guildId !== guildId || !message.content.trim()) {
+  if (message.guildId !== guildId || !hasRenderableSource(message)) {
     throw new Error("INVALID_QUOTE_SOURCE");
   }
 
@@ -355,6 +364,48 @@ function channelName(message: Message): string {
   return "name" in message.channel && message.channel.name
     ? message.channel.name
     : message.channelId;
+}
+
+function hasRenderableSource(message: Message): boolean {
+  return Boolean(message.content.trim() || sourceImageAttachment(message));
+}
+
+function sourceQuoteContent(message: Message): string {
+  if (message.content.trim()) {
+    return message.content;
+  }
+
+  const image = sourceImageAttachment(message);
+  if (!image) {
+    throw new Error("INVALID_QUOTE_SOURCE");
+  }
+
+  return image.description?.trim() || image.name || "画像付きメッセージ";
+}
+
+function sourceImageAttachment(message: Message) {
+  return message.attachments?.find((attachment) => attachment.contentType?.startsWith("image/"));
+}
+
+function sourcePortraitUrl(message: Message): string {
+  return (
+    sourceImageAttachment(message)?.url ??
+    message.author.displayAvatarURL({ extension: "png", size: 512 })
+  );
+}
+
+function designOption<T extends { setName(name: string): T; setDescription(description: string): T; addChoices(...choices: { name: string; value: string }[]): T }>(
+  option: T
+): T {
+  return option
+    .setName("design")
+    .setDescription("Quote画像のデザイン")
+    .addChoices(
+      { name: "アニメポスター", value: "anime" },
+      { name: "漫画コマ", value: "manga" },
+      { name: "ネオン配信", value: "neon" },
+      { name: "シネマ", value: "cinema" }
+    );
 }
 
 function themeOption<T extends { setName(name: string): T; setDescription(description: string): T; addChoices(...choices: { name: string; value: string }[]): T }>(
@@ -381,6 +432,7 @@ function avatarPositionOption<T extends { setName(name: string): T; setDescripti
 
 function selectedAppearance(interaction: ChatInputCommandInteraction): QuoteCardAppearance {
   return {
+    design: parseDesign(interaction.options.getString("design")) ?? defaultAppearance.design,
     theme: parseTheme(interaction.options.getString("theme")) ?? defaultAppearance.theme,
     avatarPosition:
       parseAvatarPosition(interaction.options.getString("icon-position")) ??
@@ -396,7 +448,7 @@ async function quoteImageAttachment(
   const image = await renderQuoteCard({
     quote,
     appearance,
-    ...(avatarUrl ? { avatarUrl } : {})
+    ...(avatarUrl ? { portraitUrl: avatarUrl } : {})
   });
   return new AttachmentBuilder(image, {
     name: `lunaria-quote-${appearance.theme}-${appearance.avatarPosition}.png`
@@ -419,6 +471,19 @@ function quoteCardControls(
         .setStyle(theme === appearance.theme ? ButtonStyle.Primary : ButtonStyle.Secondary)
     )
   );
+  const designRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    ...([
+      ["anime", "アニメ"],
+      ["manga", "漫画"],
+      ["neon", "ネオン"],
+      ["cinema", "シネマ"]
+    ] as const).map(([design, label]) =>
+      new ButtonBuilder()
+        .setCustomId(buttonId(source, { ...appearance, design }))
+        .setLabel(label)
+        .setStyle(design === appearance.design ? ButtonStyle.Primary : ButtonStyle.Secondary)
+    )
+  );
   const sideRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     ...([
       ["left", "アイコン 左"],
@@ -435,7 +500,7 @@ function quoteCardControls(
     )
   );
 
-  return [themeRow, sideRow];
+  return [designRow, themeRow, sideRow];
 }
 
 function buttonId(
@@ -446,6 +511,7 @@ function buttonId(
     quoteCardButtonPrefix,
     source.channelId,
     source.id,
+    appearance.design,
     appearance.theme,
     appearance.avatarPosition
   ].join(":");
@@ -456,20 +522,25 @@ function parseQuoteCardButtonId(customId: string): {
   readonly messageId: string;
   readonly appearance: QuoteCardAppearance;
 } | undefined {
-  const [prefix, channelId, messageId, themeValue, positionValue] = customId.split(":");
+  const parts = customId.split(":");
+  const [prefix, channelId, messageId] = parts;
+  const [designValue, themeValue, positionValue] =
+    parts.length === 5 ? ["cinema", parts[3], parts[4]] : parts.slice(3);
+  const design = parseDesign(designValue);
   const theme = parseTheme(themeValue);
   const avatarPosition = parseAvatarPosition(positionValue);
   if (
     prefix !== quoteCardButtonPrefix ||
     !channelId ||
     !messageId ||
+    !design ||
     !theme ||
     !avatarPosition
   ) {
     return undefined;
   }
 
-  return { channelId, messageId, appearance: { theme, avatarPosition } };
+  return { channelId, messageId, appearance: { design, theme, avatarPosition } };
 }
 
 async function fetchUserAvatar(
@@ -554,15 +625,19 @@ function parseReplyCommand(content: string): {
 
   let theme = defaultAppearance.theme;
   let avatarPosition = defaultAppearance.avatarPosition;
+  let design = defaultAppearance.design;
   const argumentsText = match[1]?.trim();
   if (!argumentsText) {
-    return { appearance: { theme, avatarPosition } };
+    return { appearance: { design, theme, avatarPosition } };
   }
 
   for (const token of argumentsText.split(/\s+/u)) {
     const nextTheme = parseTheme(token);
     const nextPosition = parseAvatarPosition(token);
-    if (nextTheme) {
+    const nextDesign = parseDesign(token);
+    if (nextDesign) {
+      design = nextDesign;
+    } else if (nextTheme) {
       theme = nextTheme;
     } else if (nextPosition) {
       avatarPosition = nextPosition;
@@ -571,7 +646,23 @@ function parseReplyCommand(content: string): {
     }
   }
 
-  return { appearance: { theme, avatarPosition } };
+  return { appearance: { design, theme, avatarPosition } };
+}
+
+function parseDesign(value: string | undefined | null): QuoteCardDesign | undefined {
+  if (value && ["anime", "アニメ", "アニメポスター"].includes(value)) {
+    return "anime";
+  }
+  if (value && ["manga", "漫画", "漫画コマ"].includes(value)) {
+    return "manga";
+  }
+  if (value && ["neon", "ネオン", "配信", "ネオン配信"].includes(value)) {
+    return "neon";
+  }
+  if (value && ["cinema", "シネマ", "映画"].includes(value)) {
+    return "cinema";
+  }
+  return undefined;
 }
 
 function parseTheme(value: string | undefined | null): QuoteCardTheme | undefined {
@@ -601,7 +692,7 @@ function parseAvatarPosition(
 
 function replyUsage(error?: string): string {
   const prefix = error ? `${error}\n` : "";
-  return `${prefix}画像化したいメッセージへ返信して \`!quote\` を送ってください。\n例: \`!quote カラー 右\`, \`!quote 白 左\`, \`!q 黒 右\``;
+  return `${prefix}画像化したいメッセージへ返信して \`!quote\` を送ってください。\n例: \`!quote アニメ カラー 右\`, \`!q 漫画 白 左\`, \`!quote ネオン 黒\``;
 }
 
 function commandErrorMessage(error: unknown): string {
@@ -612,12 +703,12 @@ function commandErrorMessage(error: unknown): string {
     return "対象のquoteが見つかりません。";
   }
   if (error instanceof Error && error.message === "INVALID_QUOTE_SOURCE") {
-    return "同じGuildの本文付きDiscordメッセージURLを指定してください。";
+    return "同じGuildの本文または画像付きメッセージを指定してください。";
   }
   if (hasErrorCode(error, "P2002")) {
     return "このメッセージは既にQuoteへ登録されています。";
   }
-  return "Quote操作に失敗しました。";
+  return "Quote画像の生成に失敗しました。もう一度試してください。";
 }
 
 function logUnexpectedQuoteError(error: unknown): void {

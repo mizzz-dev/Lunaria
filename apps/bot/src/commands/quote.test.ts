@@ -83,8 +83,10 @@ describe("quote command", () => {
       "hide"
     ]);
     expect(JSON.stringify(add)).toContain('"name":"theme"');
+    expect(JSON.stringify(add)).toContain('"name":"design"');
     expect(JSON.stringify(add)).toContain('"name":"icon-position"');
     expect(JSON.stringify(random)).toContain('"name":"theme"');
+    expect(JSON.stringify(random)).toContain('"name":"design"');
     expect(JSON.stringify(random)).toContain('"name":"icon-position"');
   });
 
@@ -101,6 +103,7 @@ describe("quote command", () => {
         getSubcommand: () => "add",
         getString: (name: string) => {
           if (name === "message-url") return record.sourceMessageUrl;
+          if (name === "design") return "manga";
           if (name === "theme") return "color";
           return "right";
         }
@@ -127,7 +130,7 @@ describe("quote command", () => {
     );
     expect(card.renderQuoteCard).toHaveBeenCalledWith(
       expect.objectContaining({
-        appearance: { theme: "color", avatarPosition: "right" }
+        appearance: { design: "manga", theme: "color", avatarPosition: "right" }
       })
     );
     expect(editReply).toHaveBeenCalledWith(
@@ -146,7 +149,10 @@ describe("quote command", () => {
       guildId: "guild-1",
       options: {
         getSubcommand: () => "random",
-        getString: (name: string) => (name === "theme" ? "white" : "right")
+        getString: (name: string) => {
+          if (name === "design") return "cinema";
+          return name === "theme" ? "white" : "right";
+        }
       },
       client: {
         users: {
@@ -164,7 +170,7 @@ describe("quote command", () => {
     expect(quoteService.randomVisible).toHaveBeenCalledWith("guild-1");
     expect(card.renderQuoteCard).toHaveBeenCalledWith(
       expect.objectContaining({
-        appearance: { theme: "white", avatarPosition: "right" }
+        appearance: { design: "cinema", theme: "white", avatarPosition: "right" }
       })
     );
     expect(editReply).toHaveBeenCalledWith(
@@ -226,7 +232,7 @@ describe("quote command", () => {
 
     expect(card.renderQuoteCard).toHaveBeenCalledWith(
       expect.objectContaining({
-        appearance: { theme: "black", avatarPosition: "left" }
+        appearance: { design: "anime", theme: "color", avatarPosition: "left" }
       })
     );
     expect(editReply).toHaveBeenCalledWith(
@@ -237,12 +243,50 @@ describe("quote command", () => {
     );
   });
 
+  it("generates a card from an image-only selected message", async () => {
+    const command = createQuoteMessageCommand(service());
+    const editReply = vi.fn();
+    const targetMessage = {
+      ...sourceMessage(),
+      content: "",
+      attachments: {
+        find: vi.fn().mockReturnValue({
+          name: "terminal-capture.png",
+          description: null,
+          contentType: "image/png",
+          url: "https://cdn.discordapp.com/attachments/channel/message/terminal.png"
+        })
+      }
+    };
+    const interaction = {
+      guildId: "guild-1",
+      guild: { ownerId: "other-user" },
+      user: { id: "moderator-1" },
+      memberPermissions: { has: vi.fn().mockReturnValue(true) },
+      targetMessage,
+      deferReply: vi.fn(),
+      editReply
+    } as unknown as MessageContextMenuCommandInteraction;
+
+    await command.execute(interaction);
+
+    expect(card.renderQuoteCard).toHaveBeenCalledWith(
+      expect.objectContaining({
+        quote: expect.objectContaining({ content: "terminal-capture.png" }),
+        portraitUrl: expect.stringContaining("terminal.png")
+      })
+    );
+    expect(editReply).toHaveBeenCalledWith(
+      expect.objectContaining({ files: expect.any(Array) })
+    );
+  });
+
   it("rerenders a selected quote when an appearance button is pressed", async () => {
     const quoteService = service();
     quoteService.add.mockRejectedValueOnce({ code: "P2002" });
     const editReply = vi.fn();
     const interaction = {
-      customId: "quote-card:channel-1:message-1:white:right",
+      customId: "quote-card:channel-1:message-1:manga:white:right",
       guildId: "guild-1",
       guild: { ownerId: "other-user" },
       user: { id: "moderator-1" },
@@ -264,7 +308,7 @@ describe("quote command", () => {
     expect(await handleQuoteCardButtonInteraction(interaction, quoteService)).toBe(true);
     expect(card.renderQuoteCard).toHaveBeenCalledWith(
       expect.objectContaining({
-        appearance: { theme: "white", avatarPosition: "right" }
+        appearance: { design: "manga", theme: "white", avatarPosition: "right" }
       })
     );
     expect(editReply).toHaveBeenCalledWith(
@@ -272,11 +316,40 @@ describe("quote command", () => {
     );
   });
 
+  it("keeps previously sent appearance buttons usable", async () => {
+    const interaction = {
+      customId: "quote-card:channel-1:message-1:white:right",
+      guildId: "guild-1",
+      guild: { ownerId: "other-user" },
+      user: { id: "moderator-1" },
+      memberPermissions: { has: vi.fn().mockReturnValue(true) },
+      client: {
+        channels: {
+          fetch: vi.fn().mockResolvedValue({
+            isTextBased: () => true,
+            messages: { fetch: vi.fn().mockResolvedValue(sourceMessage()) }
+          })
+        }
+      },
+      deferUpdate: vi.fn(),
+      editReply: vi.fn(),
+      deferred: true,
+      replied: false
+    } as unknown as ButtonInteraction;
+
+    expect(await handleQuoteCardButtonInteraction(interaction, service())).toBe(true);
+    expect(card.renderQuoteCard).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appearance: { design: "cinema", theme: "white", avatarPosition: "right" }
+      })
+    );
+  });
+
   it.each([
-    ["!quote", { theme: "black", avatarPosition: "left" }],
-    ["!quote カラー 右", { theme: "color", avatarPosition: "right" }],
-    ["!q 白 左", { theme: "white", avatarPosition: "left" }],
-    ["!quote monochrome right", { theme: "black", avatarPosition: "right" }]
+    ["!quote", { design: "anime", theme: "color", avatarPosition: "left" }],
+    ["!quote アニメ カラー 右", { design: "anime", theme: "color", avatarPosition: "right" }],
+    ["!q 漫画 白 左", { design: "manga", theme: "white", avatarPosition: "left" }],
+    ["!quote ネオン monochrome right", { design: "neon", theme: "black", avatarPosition: "right" }]
   ] as const)("renders the referenced message for reply command %s", async (content, appearance) => {
     const reply = vi.fn();
     const message = {
@@ -328,7 +401,7 @@ describe("quote command", () => {
       )
     ).toBe(true);
     expect(noSourceReply).toHaveBeenCalledWith(
-      expect.objectContaining({ content: expect.stringContaining("!quote カラー 右") })
+      expect.objectContaining({ content: expect.stringContaining("!quote アニメ カラー 右") })
     );
     expect(invalidReply).toHaveBeenCalledWith(
       expect.objectContaining({ content: expect.stringContaining("不明な指定") })
