@@ -241,6 +241,13 @@ describe("quote command", () => {
         components: expect.any(Array)
       })
     );
+    const components = editReply.mock.calls[0]?.[0].components as Array<{
+      toJSON(): { components: Array<{ custom_id: string }> };
+    }>;
+    const customIds = components.flatMap((row) =>
+      row.toJSON().components.map((component) => component.custom_id)
+    );
+    expect(new Set(customIds).size).toBe(customIds.length);
   });
 
   it("generates a card from an image-only selected message", async () => {

@@ -466,7 +466,7 @@ function quoteCardControls(
       ["color", "カラー"]
     ] as const).map(([theme, label]) =>
       new ButtonBuilder()
-        .setCustomId(buttonId(source, { ...appearance, theme }))
+        .setCustomId(buttonId(source, { ...appearance, theme }, "theme"))
         .setLabel(label)
         .setStyle(theme === appearance.theme ? ButtonStyle.Primary : ButtonStyle.Secondary)
     )
@@ -479,7 +479,7 @@ function quoteCardControls(
       ["cinema", "シネマ"]
     ] as const).map(([design, label]) =>
       new ButtonBuilder()
-        .setCustomId(buttonId(source, { ...appearance, design }))
+        .setCustomId(buttonId(source, { ...appearance, design }, "design"))
         .setLabel(label)
         .setStyle(design === appearance.design ? ButtonStyle.Primary : ButtonStyle.Secondary)
     )
@@ -490,7 +490,7 @@ function quoteCardControls(
       ["right", "アイコン 右"]
     ] as const).map(([avatarPosition, label]) =>
       new ButtonBuilder()
-        .setCustomId(buttonId(source, { ...appearance, avatarPosition }))
+        .setCustomId(buttonId(source, { ...appearance, avatarPosition }, "position"))
         .setLabel(label)
         .setStyle(
           avatarPosition === appearance.avatarPosition
@@ -505,7 +505,8 @@ function quoteCardControls(
 
 function buttonId(
   source: Pick<Message, "channelId" | "id">,
-  appearance: QuoteCardAppearance
+  appearance: QuoteCardAppearance,
+  control: "design" | "theme" | "position"
 ): string {
   return [
     quoteCardButtonPrefix,
@@ -513,7 +514,8 @@ function buttonId(
     source.id,
     appearance.design,
     appearance.theme,
-    appearance.avatarPosition
+    appearance.avatarPosition,
+    control
   ].join(":");
 }
 
