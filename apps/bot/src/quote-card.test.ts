@@ -23,11 +23,15 @@ async function avatar(): Promise<Buffer> {
 }
 
 describe("quote card renderer", () => {
-  it.each(["monochrome", "color"] as const)("renders a %s PNG card", async (style) => {
+  it.each([
+    ["black", "left"],
+    ["white", "right"],
+    ["color", "left"]
+  ] as const)("renders a %s card with the avatar on the %s", async (theme, avatarPosition) => {
     const output = await renderQuoteCard({
       quote,
       avatarUrl: "https://cdn.discordapp.com/avatars/user/avatar.png",
-      style,
+      appearance: { theme, avatarPosition },
       fetchImage: async () => avatar()
     });
     const metadata = await sharp(output).metadata();
@@ -38,7 +42,10 @@ describe("quote card renderer", () => {
   });
 
   it("renders without a Discord avatar when no image is available", async () => {
-    const output = await renderQuoteCard({ quote, style: "color" });
+    const output = await renderQuoteCard({
+      quote,
+      appearance: { theme: "white", avatarPosition: "right" }
+    });
 
     expect((await sharp(output).metadata()).format).toBe("png");
   });

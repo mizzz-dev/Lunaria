@@ -7,10 +7,10 @@ import {
 } from "discord.js";
 import { lunariaCommand } from "./commands/lunaria.js";
 import {
-  quoteColorMessageCommand,
+  handleQuoteCardButtonInteraction,
   quoteCommand,
   handleQuoteReplyMessage,
-  quoteMonochromeMessageCommand
+  quoteMessageCommand
 } from "./commands/quote.js";
 import type { BotConfig } from "./config.js";
 import { handleMessageCreate } from "./message-rules.js";
@@ -31,11 +31,13 @@ export function buildBotClient(): Client {
 
   client.on(Events.InteractionCreate, async (interaction: Interaction) => {
     if (interaction.isMessageContextMenuCommand()) {
-      if (interaction.commandName === quoteMonochromeMessageCommand.data.name) {
-        await quoteMonochromeMessageCommand.execute(interaction);
-      } else if (interaction.commandName === quoteColorMessageCommand.data.name) {
-        await quoteColorMessageCommand.execute(interaction);
+      if (interaction.commandName === quoteMessageCommand.data.name) {
+        await quoteMessageCommand.execute(interaction);
       }
+      return;
+    }
+
+    if (interaction.isButton() && (await handleQuoteCardButtonInteraction(interaction))) {
       return;
     }
 

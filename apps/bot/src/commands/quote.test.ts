@@ -1,6 +1,7 @@
 import type { QuoteRecord } from "@lunaria/core";
 import {
   ApplicationCommandType,
+  type ButtonInteraction,
   type ChatInputCommandInteraction,
   type Message,
   type MessageContextMenuCommandInteraction
@@ -9,6 +10,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createQuoteCommand,
   createQuoteMessageCommand,
+  handleQuoteCardButtonInteraction,
   handleQuoteReplyMessage
 } from "./quote.js";
 
@@ -45,13 +47,31 @@ function service() {
   };
 }
 
+function sourceMessage() {
+  return {
+    id: "message-1",
+    guildId: "guild-1",
+    content: "A good quote.",
+    url: record.sourceMessageUrl,
+    author: {
+      id: "author-1",
+      globalName: "Author",
+      username: "author",
+      displayAvatarURL: vi.fn().mockReturnValue("https://cdn.discordapp.com/a.png")
+    },
+    channelId: "channel-1",
+    channel: { name: "general" },
+    createdAt: date
+  };
+}
+
 describe("quote command", () => {
   beforeEach(() => {
     card.renderQuoteCard.mockReset();
     card.renderQuoteCard.mockResolvedValue(Buffer.from("png"));
   });
 
-  it("registers add, random and hide subcommands", () => {
+  it("registers add and random appearance options", () => {
     const commandJson = createQuoteCommand(service()).data.toJSON();
     const add = commandJson.options?.find((option) => option.name === "add");
     const random = commandJson.options?.find((option) => option.name === "random");
@@ -62,30 +82,16 @@ describe("quote command", () => {
       "random",
       "hide"
     ]);
-    expect(JSON.stringify(add)).toContain('"name":"style"');
-    expect(JSON.stringify(random)).toContain('"name":"style"');
+    expect(JSON.stringify(add)).toContain('"name":"theme"');
+    expect(JSON.stringify(add)).toContain('"name":"icon-position"');
+    expect(JSON.stringify(random)).toContain('"name":"theme"');
+    expect(JSON.stringify(random)).toContain('"name":"icon-position"');
   });
 
-  it("adds a fetched message from the current guild", async () => {
+  it("adds a fetched message with the selected appearance", async () => {
     const quoteService = service();
     const command = createQuoteCommand(quoteService);
-    const deferReply = vi.fn();
     const editReply = vi.fn();
-    const message = {
-      id: "message-1",
-      guildId: "guild-1",
-      content: "A good quote.",
-      url: record.sourceMessageUrl,
-      channelId: "channel-1",
-      channel: { name: "general" },
-      createdAt: date,
-      author: {
-        id: "author-1",
-        globalName: "Author",
-        username: "author",
-        displayAvatarURL: vi.fn().mockReturnValue("https://cdn.discordapp.com/a.png")
-      }
-    };
     const interaction = {
       guildId: "guild-1",
       guild: { ownerId: "other-user" },
@@ -93,18 +99,21 @@ describe("quote command", () => {
       memberPermissions: { has: vi.fn().mockReturnValue(true) },
       options: {
         getSubcommand: () => "add",
-        getString: (name: string) =>
-          name === "message-url" ? record.sourceMessageUrl : "color"
+        getString: (name: string) => {
+          if (name === "message-url") return record.sourceMessageUrl;
+          if (name === "theme") return "color";
+          return "right";
+        }
       },
       client: {
         channels: {
           fetch: vi.fn().mockResolvedValue({
             isTextBased: () => true,
-            messages: { fetch: vi.fn().mockResolvedValue(message) }
+            messages: { fetch: vi.fn().mockResolvedValue(sourceMessage()) }
           })
         }
       },
-      deferReply,
+      deferReply: vi.fn(),
       editReply
     } as unknown as ChatInputCommandInteraction;
 
@@ -113,32 +122,31 @@ describe("quote command", () => {
     expect(quoteService.add).toHaveBeenCalledWith(
       expect.objectContaining({
         guildId: "guild-1",
-        quote: expect.objectContaining({
-          sourceMessageId: "message-1",
-          sourceChannelId: "channel-1",
-          content: "A good quote."
-        })
+        quote: expect.objectContaining({ sourceMessageId: "message-1" })
       })
     );
-    expect(deferReply).toHaveBeenCalled();
     expect(card.renderQuoteCard).toHaveBeenCalledWith(
-      expect.objectContaining({ style: "color" })
+      expect.objectContaining({
+        appearance: { theme: "color", avatarPosition: "right" }
+      })
     );
     expect(editReply).toHaveBeenCalledWith(
-      expect.objectContaining({ files: expect.any(Array) })
+      expect.objectContaining({
+        files: expect.any(Array),
+        components: expect.any(Array)
+      })
     );
   });
 
-  it("shows a random quote without enabling mentions", async () => {
+  it("shows a random quote using white background and right portrait", async () => {
     const quoteService = service();
     const command = createQuoteCommand(quoteService);
-    const deferReply = vi.fn();
     const editReply = vi.fn();
     const interaction = {
       guildId: "guild-1",
       options: {
         getSubcommand: () => "random",
-        getString: () => "monochrome"
+        getString: (name: string) => (name === "theme" ? "white" : "right")
       },
       client: {
         users: {
@@ -147,16 +155,17 @@ describe("quote command", () => {
           })
         }
       },
-      deferReply,
+      deferReply: vi.fn(),
       editReply
     } as unknown as ChatInputCommandInteraction;
 
     await command.execute(interaction);
 
     expect(quoteService.randomVisible).toHaveBeenCalledWith("guild-1");
-    expect(deferReply).toHaveBeenCalled();
     expect(card.renderQuoteCard).toHaveBeenCalledWith(
-      expect.objectContaining({ style: "monochrome" })
+      expect.objectContaining({
+        appearance: { theme: "white", avatarPosition: "right" }
+      })
     );
     expect(editReply).toHaveBeenCalledWith(
       expect.objectContaining({ files: expect.any(Array) })
@@ -190,90 +199,25 @@ describe("quote command", () => {
     );
   });
 
-  it("registers a message application command for direct quote capture", () => {
-    const monochrome = createQuoteMessageCommand(service(), "monochrome").data.toJSON();
-    const color = createQuoteMessageCommand(service(), "color").data.toJSON();
+  it("registers one configurable message application command", () => {
+    const commandJson = createQuoteMessageCommand(service()).data.toJSON();
 
-    expect(monochrome).toMatchObject({
-      name: "Quote画像 (白黒)",
-      type: ApplicationCommandType.Message
-    });
-    expect(color).toMatchObject({
-      name: "Quote画像 (カラー)",
+    expect(commandJson).toMatchObject({
+      name: "Quote画像を作成",
       type: ApplicationCommandType.Message
     });
   });
 
-  it("adds the selected message through the application command", async () => {
+  it("adds the selected message and exposes appearance buttons", async () => {
     const quoteService = service();
-    const command = createQuoteMessageCommand(quoteService, "color");
-    const deferReply = vi.fn();
+    const command = createQuoteMessageCommand(quoteService);
     const editReply = vi.fn();
     const interaction = {
       guildId: "guild-1",
       guild: { ownerId: "other-user" },
       user: { id: "moderator-1" },
       memberPermissions: { has: vi.fn().mockReturnValue(true) },
-      targetMessage: {
-        id: "message-1",
-        guildId: "guild-1",
-        content: "A good quote.",
-        url: record.sourceMessageUrl,
-        author: {
-          id: "author-1",
-          globalName: "Author",
-          username: "author",
-          displayAvatarURL: vi.fn().mockReturnValue("https://cdn.discordapp.com/a.png")
-        },
-        channelId: "channel-1",
-        channel: { name: "general" },
-        createdAt: date
-      },
-      deferReply,
-      editReply
-    } as unknown as MessageContextMenuCommandInteraction;
-
-    await command.execute(interaction);
-
-    expect(quoteService.add).toHaveBeenCalledWith(
-      expect.objectContaining({
-        guildId: "guild-1",
-        quote: expect.objectContaining({ sourceMessageId: "message-1" })
-      })
-    );
-    expect(card.renderQuoteCard).toHaveBeenCalledWith(
-      expect.objectContaining({ style: "color" })
-    );
-    expect(editReply).toHaveBeenCalledWith(
-      expect.objectContaining({ files: expect.any(Array) })
-    );
-  });
-
-  it("regenerates an already saved selected message in another style", async () => {
-    const quoteService = service();
-    quoteService.add.mockRejectedValueOnce({ code: "P2002" });
-    const command = createQuoteMessageCommand(quoteService, "monochrome");
-    const editReply = vi.fn();
-    const interaction = {
-      guildId: "guild-1",
-      guild: { ownerId: "other-user" },
-      user: { id: "moderator-1" },
-      memberPermissions: { has: vi.fn().mockReturnValue(true) },
-      targetMessage: {
-        id: "message-1",
-        guildId: "guild-1",
-        content: "A good quote.",
-        url: record.sourceMessageUrl,
-        author: {
-          id: "author-1",
-          globalName: "Author",
-          username: "author",
-          displayAvatarURL: vi.fn().mockReturnValue("https://cdn.discordapp.com/a.png")
-        },
-        channelId: "channel-1",
-        channel: { name: "general" },
-        createdAt: date
-      },
+      targetMessage: sourceMessage(),
       deferReply: vi.fn(),
       editReply
     } as unknown as MessageContextMenuCommandInteraction;
@@ -281,35 +225,60 @@ describe("quote command", () => {
     await command.execute(interaction);
 
     expect(card.renderQuoteCard).toHaveBeenCalledWith(
-      expect.objectContaining({ style: "monochrome" })
+      expect.objectContaining({
+        appearance: { theme: "black", avatarPosition: "left" }
+      })
     );
     expect(editReply).toHaveBeenCalledWith(
-      expect.objectContaining({ files: expect.any(Array) })
+      expect.objectContaining({
+        files: expect.any(Array),
+        components: expect.any(Array)
+      })
+    );
+  });
+
+  it("rerenders a selected quote when an appearance button is pressed", async () => {
+    const quoteService = service();
+    quoteService.add.mockRejectedValueOnce({ code: "P2002" });
+    const editReply = vi.fn();
+    const interaction = {
+      customId: "quote-card:channel-1:message-1:white:right",
+      guildId: "guild-1",
+      guild: { ownerId: "other-user" },
+      user: { id: "moderator-1" },
+      memberPermissions: { has: vi.fn().mockReturnValue(true) },
+      client: {
+        channels: {
+          fetch: vi.fn().mockResolvedValue({
+            isTextBased: () => true,
+            messages: { fetch: vi.fn().mockResolvedValue(sourceMessage()) }
+          })
+        }
+      },
+      deferUpdate: vi.fn(),
+      editReply,
+      deferred: true,
+      replied: false
+    } as unknown as ButtonInteraction;
+
+    expect(await handleQuoteCardButtonInteraction(interaction, quoteService)).toBe(true);
+    expect(card.renderQuoteCard).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appearance: { theme: "white", avatarPosition: "right" }
+      })
+    );
+    expect(editReply).toHaveBeenCalledWith(
+      expect.objectContaining({ components: expect.any(Array) })
     );
   });
 
   it.each([
-    ["!quote", "monochrome"],
-    ["!quote color", "color"],
-    ["!quote カラー", "color"]
-  ] as const)("renders the referenced message for reply command %s", async (content, style) => {
-    const quoteService = service();
+    ["!quote", { theme: "black", avatarPosition: "left" }],
+    ["!quote カラー 右", { theme: "color", avatarPosition: "right" }],
+    ["!q 白 左", { theme: "white", avatarPosition: "left" }],
+    ["!quote monochrome right", { theme: "black", avatarPosition: "right" }]
+  ] as const)("renders the referenced message for reply command %s", async (content, appearance) => {
     const reply = vi.fn();
-    const source = {
-      id: "message-1",
-      guildId: "guild-1",
-      content: "A good quote.",
-      url: record.sourceMessageUrl,
-      author: {
-        id: "author-1",
-        globalName: "Author",
-        username: "author",
-        displayAvatarURL: vi.fn().mockReturnValue("https://cdn.discordapp.com/a.png")
-      },
-      channelId: "channel-1",
-      channel: { name: "general" },
-      createdAt: date
-    };
     const message = {
       guildId: "guild-1",
       guild: { ownerId: "other-user" },
@@ -317,31 +286,52 @@ describe("quote command", () => {
       member: { permissions: { has: vi.fn().mockReturnValue(true) } },
       content,
       reference: { messageId: "message-1" },
-      fetchReference: vi.fn().mockResolvedValue(source),
-      reply
-    } as unknown as Message;
-
-    expect(await handleQuoteReplyMessage(message, quoteService)).toBe(true);
-    expect(card.renderQuoteCard).toHaveBeenCalledWith(
-      expect.objectContaining({ style })
-    );
-    expect(reply).toHaveBeenCalledWith(
-      expect.objectContaining({ files: expect.any(Array) })
-    );
-  });
-
-  it("guides a reply command that does not reference a source message", async () => {
-    const reply = vi.fn();
-    const message = {
-      guildId: "guild-1",
-      author: { id: "moderator-1", bot: false },
-      content: "!quote",
+      fetchReference: vi.fn().mockResolvedValue(sourceMessage()),
       reply
     } as unknown as Message;
 
     expect(await handleQuoteReplyMessage(message, service())).toBe(true);
+    expect(card.renderQuoteCard).toHaveBeenCalledWith(
+      expect.objectContaining({ appearance })
+    );
     expect(reply).toHaveBeenCalledWith(
-      expect.objectContaining({ content: expect.stringContaining("返信して") })
+      expect.objectContaining({
+        files: expect.any(Array),
+        components: expect.any(Array)
+      })
+    );
+  });
+
+  it("guides missing sources and invalid reply options", async () => {
+    const noSourceReply = vi.fn();
+    const invalidReply = vi.fn();
+    const base = {
+      guildId: "guild-1",
+      author: { id: "moderator-1", bot: false }
+    };
+
+    expect(
+      await handleQuoteReplyMessage(
+        { ...base, content: "!quote", reply: noSourceReply } as unknown as Message,
+        service()
+      )
+    ).toBe(true);
+    expect(
+      await handleQuoteReplyMessage(
+        {
+          ...base,
+          content: "!q rainbow",
+          reference: { messageId: "message-1" },
+          reply: invalidReply
+        } as unknown as Message,
+        service()
+      )
+    ).toBe(true);
+    expect(noSourceReply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining("!quote カラー 右") })
+    );
+    expect(invalidReply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining("不明な指定") })
     );
     expect(card.renderQuoteCard).not.toHaveBeenCalled();
   });
