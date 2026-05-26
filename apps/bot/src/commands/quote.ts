@@ -8,14 +8,15 @@ import {
 import { prisma, PrismaAuditLogStore, PrismaQuoteStore } from "@lunaria/db";
 import {
   ApplicationCommandType,
+  AttachmentBuilder,
   ChatInputCommandInteraction,
   ContextMenuCommandBuilder,
-  EmbedBuilder,
   MessageContextMenuCommandInteraction,
   PermissionFlagsBits,
   SlashCommandBuilder,
   type Message
 } from "discord.js";
+import { renderQuoteCard, type QuoteCardStyle } from "../quote-card.js";
 
 type QuoteCommandService = Pick<QuoteService, "add" | "hide" | "randomVisible">;
 type QuoteManagementInteraction =
@@ -37,9 +38,13 @@ export function createQuoteCommand(service: QuoteCommandService) {
               .setDescription("Discord message URL to save")
               .setRequired(true)
           )
+          .addStringOption((option) => styleOption(option))
       )
       .addSubcommand((subcommand) =>
-        subcommand.setName("random").setDescription("Show a random quote")
+        subcommand
+          .setName("random")
+          .setDescription("Show a random quote")
+          .addStringOption((option) => styleOption(option))
       )
       .addSubcommand((subcommand) =>
         subcommand
@@ -62,11 +67,18 @@ export function createQuoteCommand(service: QuoteCommandService) {
 
         if (subcommand === "random") {
           const quote = await service.randomVisible(guildId);
-          await interaction.reply({
-            ...(quote
-              ? { embeds: [quoteEmbed(quote)] }
-              : { content: "表示できるquoteがまだありません。" }),
-            allowedMentions: { parse: [] }
+          if (!quote) {
+            await interaction.reply({
+              content: "表示できるquoteがまだありません。",
+              allowedMentions: { parse: [] }
+            });
+            return;
+          }
+
+          await interaction.deferReply();
+          const avatarUrl = await fetchUserAvatar(interaction, quote.sourceAuthorId);
+          await interaction.editReply({
+            files: [await quoteImageAttachment(quote, avatarUrl, selectedStyle(interaction))]
           });
           return;
         }
@@ -82,7 +94,18 @@ export function createQuoteCommand(service: QuoteCommandService) {
             interaction.options.getString("message-url", true),
             guildId
           );
-          await addQuoteFromMessage(service, interaction, guildId, actor, source);
+          await interaction.deferReply();
+          await interaction.editReply({
+            files: [
+              await createQuoteImageFromMessage(
+                service,
+                guildId,
+                actor,
+                source,
+                selectedStyle(interaction)
+              )
+            ]
+          });
           return;
         }
 
@@ -99,19 +122,19 @@ export function createQuoteCommand(service: QuoteCommandService) {
         await interaction.reply({ content: "未知のquote操作です。", ephemeral: true });
       } catch (error) {
         logUnexpectedQuoteError(error);
-        await interaction.reply({
-          content: commandErrorMessage(error),
-          ephemeral: true
-        });
+        await replyWithError(interaction, error);
       }
     }
   };
 }
 
-export function createQuoteMessageCommand(service: QuoteCommandService) {
+export function createQuoteMessageCommand(
+  service: QuoteCommandService,
+  style: QuoteCardStyle
+) {
   return {
     data: new ContextMenuCommandBuilder()
-      .setName("Quoteに登録")
+      .setName(style === "monochrome" ? "Quote画像 (白黒)" : "Quote画像 (カラー)")
       .setType(ApplicationCommandType.Message),
 
     async execute(interaction: MessageContextMenuCommandInteraction): Promise<void> {
@@ -122,54 +145,61 @@ export function createQuoteMessageCommand(service: QuoteCommandService) {
       }
 
       try {
-        await addQuoteFromMessage(
-          service,
-          interaction,
-          guildId,
-          quoteActor(interaction, guildId),
-          interaction.targetMessage
-        );
+        await interaction.deferReply();
+        await interaction.editReply({
+          files: [
+            await createQuoteImageFromMessage(
+              service,
+              guildId,
+              quoteActor(interaction, guildId),
+              interaction.targetMessage,
+              style
+            )
+          ]
+        });
       } catch (error) {
         logUnexpectedQuoteError(error);
-        await interaction.reply({
-          content: commandErrorMessage(error),
-          ephemeral: true
-        });
+        await replyWithError(interaction, error);
       }
     }
   };
 }
 
-async function addQuoteFromMessage(
+async function createQuoteImageFromMessage(
   service: QuoteCommandService,
-  interaction: QuoteManagementInteraction,
   guildId: string,
   actor: RbacActor,
-  source: Message
-): Promise<void> {
+  source: Message,
+  style: QuoteCardStyle
+): Promise<AttachmentBuilder> {
   if (!hasPermission(actor, "quotes:create")) {
     throw new Error("FORBIDDEN");
   }
 
-  const quote = await service.add({
-    actor,
-    guildId,
-    quote: {
-      content: source.content,
-      sourceMessageId: source.id,
-      sourceMessageUrl: source.url,
-      sourceAuthorId: source.author.id,
-      sourceAuthorName: source.author.globalName ?? source.author.username,
-      sourceChannelId: source.channelId,
-      sourceChannelName: channelName(source),
-      sourceCreatedAt: source.createdAt
-    }
-  });
+  const quote = {
+    content: source.content,
+    sourceMessageId: source.id,
+    sourceMessageUrl: source.url,
+    sourceAuthorId: source.author.id,
+    sourceAuthorName: source.author.globalName ?? source.author.username,
+    sourceChannelId: source.channelId,
+    sourceChannelName: channelName(source),
+    sourceCreatedAt: source.createdAt
+  };
 
-  await interaction.reply({
-    content: `Quoteを登録しました: \`${quote.id}\``,
-    ephemeral: true
-  });
+  try {
+    await service.add({ actor, guildId, quote });
+  } catch (error) {
+    if (!hasErrorCode(error, "P2002")) {
+      throw error;
+    }
+  }
+
+  return quoteImageAttachment(
+    quote,
+    source.author.displayAvatarURL({ extension: "png", size: 512 }),
+    style
+  );
 }
 
 function quoteActor(interaction: QuoteManagementInteraction, guildId: string): RbacActor {
@@ -183,6 +213,27 @@ function quoteActor(interaction: QuoteManagementInteraction, guildId: string): R
   return {
     guildId,
     userId: interaction.user.id,
+    roleKeys: isOwner
+      ? ["owner"]
+      : canAdminister
+        ? ["admin"]
+        : canModerate
+          ? ["moderator"]
+          : ["viewer"]
+  };
+}
+
+function quoteMessageActor(message: Message, guildId: string): RbacActor {
+  const permissions = message.member?.permissions;
+  const isOwner = message.guild?.ownerId === message.author.id;
+  const canAdminister =
+    permissions?.has(PermissionFlagsBits.Administrator) ||
+    permissions?.has(PermissionFlagsBits.ManageGuild);
+  const canModerate = permissions?.has(PermissionFlagsBits.ManageMessages);
+
+  return {
+    guildId,
+    userId: message.author.id,
     roleKeys: isOwner
       ? ["owner"]
       : canAdminister
@@ -222,13 +273,113 @@ function channelName(message: Message): string {
     : message.channelId;
 }
 
-function quoteEmbed(quote: QuoteRecord): EmbedBuilder {
-  return new EmbedBuilder()
-    .setDescription(quote.content)
-    .setAuthor({ name: quote.sourceAuthorName })
-    .setFooter({ text: `#${quote.sourceChannelName}` })
-    .setTimestamp(quote.sourceCreatedAt)
-    .setURL(quote.sourceMessageUrl);
+function styleOption<T extends { setName(name: string): T; setDescription(description: string): T; addChoices(...choices: { name: string; value: string }[]): T }>(
+  option: T
+): T {
+  return option
+    .setName("style")
+    .setDescription("Quote画像のスタイル")
+    .addChoices(
+      { name: "白黒", value: "monochrome" },
+      { name: "カラー", value: "color" }
+    );
+}
+
+function selectedStyle(interaction: ChatInputCommandInteraction): QuoteCardStyle {
+  return interaction.options.getString("style") === "color" ? "color" : "monochrome";
+}
+
+async function quoteImageAttachment(
+  quote: Pick<QuoteRecord, "content" | "sourceAuthorName" | "sourceChannelName" | "sourceCreatedAt">,
+  avatarUrl: string | undefined,
+  style: QuoteCardStyle
+): Promise<AttachmentBuilder> {
+  const image = await renderQuoteCard({
+    quote,
+    style,
+    ...(avatarUrl ? { avatarUrl } : {})
+  });
+  return new AttachmentBuilder(image, {
+    name: `lunaria-quote-${style}.png`
+  });
+}
+
+async function fetchUserAvatar(
+  interaction: ChatInputCommandInteraction,
+  userId: string
+): Promise<string | undefined> {
+  try {
+    const user = await interaction.client.users.fetch(userId);
+    return user.displayAvatarURL({ extension: "png", size: 512 });
+  } catch {
+    return undefined;
+  }
+}
+
+async function replyWithError(
+  interaction: QuoteManagementInteraction,
+  error: unknown
+): Promise<void> {
+  const content = commandErrorMessage(error);
+  if (interaction.deferred || interaction.replied) {
+    await interaction.editReply({ content });
+    return;
+  }
+
+  await interaction.reply({ content, ephemeral: true });
+}
+
+export async function handleQuoteReplyMessage(
+  message: Message,
+  service: QuoteCommandService = new QuoteService(
+    new PrismaQuoteStore(prisma),
+    new PrismaAuditLogStore(prisma)
+  )
+): Promise<boolean> {
+  if (!message.guildId || message.author.bot) {
+    return false;
+  }
+
+  const match = /^!quote(?:\s+(monochrome|mono|white|bw|白黒|color|カラー))?$/iu.exec(
+    message.content.trim()
+  );
+  if (!match) {
+    return false;
+  }
+
+  if (!message.reference?.messageId) {
+    await message.reply({
+      content: "画像化したいメッセージへ返信して `!quote` または `!quote color` を送ってください。",
+      allowedMentions: { repliedUser: false }
+    });
+    return true;
+  }
+
+  const style: QuoteCardStyle =
+    match[1] === "color" || match[1] === "カラー" ? "color" : "monochrome";
+
+  try {
+    const source = await message.fetchReference();
+    const file = await createQuoteImageFromMessage(
+      service,
+      message.guildId,
+      quoteMessageActor(message, message.guildId),
+      source,
+      style
+    );
+    await message.reply({
+      files: [file],
+      allowedMentions: { repliedUser: false }
+    });
+  } catch (error) {
+    logUnexpectedQuoteError(error);
+    await message.reply({
+      content: commandErrorMessage(error),
+      allowedMentions: { repliedUser: false }
+    });
+  }
+
+  return true;
 }
 
 function commandErrorMessage(error: unknown): string {
@@ -274,6 +425,12 @@ export const quoteCommand = createQuoteCommand(
   new QuoteService(new PrismaQuoteStore(prisma), new PrismaAuditLogStore(prisma))
 );
 
-export const quoteMessageCommand = createQuoteMessageCommand(
-  new QuoteService(new PrismaQuoteStore(prisma), new PrismaAuditLogStore(prisma))
+export const quoteMonochromeMessageCommand = createQuoteMessageCommand(
+  new QuoteService(new PrismaQuoteStore(prisma), new PrismaAuditLogStore(prisma)),
+  "monochrome"
+);
+
+export const quoteColorMessageCommand = createQuoteMessageCommand(
+  new QuoteService(new PrismaQuoteStore(prisma), new PrismaAuditLogStore(prisma)),
+  "color"
 );

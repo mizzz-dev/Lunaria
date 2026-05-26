@@ -6,7 +6,12 @@ import {
   type Interaction
 } from "discord.js";
 import { lunariaCommand } from "./commands/lunaria.js";
-import { quoteCommand, quoteMessageCommand } from "./commands/quote.js";
+import {
+  quoteColorMessageCommand,
+  quoteCommand,
+  handleQuoteReplyMessage,
+  quoteMonochromeMessageCommand
+} from "./commands/quote.js";
 import type { BotConfig } from "./config.js";
 import { handleMessageCreate } from "./message-rules.js";
 import { registerGuildCommands } from "./register-guild-commands.js";
@@ -26,8 +31,10 @@ export function buildBotClient(): Client {
 
   client.on(Events.InteractionCreate, async (interaction: Interaction) => {
     if (interaction.isMessageContextMenuCommand()) {
-      if (interaction.commandName === quoteMessageCommand.data.name) {
-        await quoteMessageCommand.execute(interaction);
+      if (interaction.commandName === quoteMonochromeMessageCommand.data.name) {
+        await quoteMonochromeMessageCommand.execute(interaction);
+      } else if (interaction.commandName === quoteColorMessageCommand.data.name) {
+        await quoteColorMessageCommand.execute(interaction);
       }
       return;
     }
@@ -45,6 +52,9 @@ export function buildBotClient(): Client {
 
   client.on(Events.MessageCreate, async (message) => {
     try {
+      if (await handleQuoteReplyMessage(message)) {
+        return;
+      }
       await handleMessageCreate(message);
     } catch (error) {
       console.error("Failed to handle messageCreate rule workflow", error);
