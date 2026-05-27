@@ -1,4 +1,5 @@
 import {
+  DAILY_CONTENT_PROCESSING_STALE_AFTER_MS,
   InMemoryAuditLogStore,
   dailyContentDedupeKey,
   type DailyContentDeliveryClaim,
@@ -21,7 +22,7 @@ const job: DailyContentDueJob = {
 class InMemoryDeliveryStore implements DailyContentDeliveryStore {
   private readonly records = new Map<string, DailyContentDeliveryRecord>();
 
-  async claim(input: DailyContentDueJob): Promise<DailyContentDeliveryClaim> {
+  async claim(input: DailyContentDueJob, claimedAt = new Date()): Promise<DailyContentDeliveryClaim> {
     const key = dailyContentDedupeKey(input);
     const existing = this.records.get(key);
 
@@ -29,11 +30,13 @@ class InMemoryDeliveryStore implements DailyContentDeliveryStore {
       return { state: "already_succeeded", delivery: existing };
     }
 
-    if (existing?.status === "processing") {
+    if (
+      existing?.status === "processing" &&
+      claimedAt.getTime() - existing.updatedAt.getTime() < DAILY_CONTENT_PROCESSING_STALE_AFTER_MS
+    ) {
       return { state: "already_processing", delivery: existing };
     }
 
-    const now = new Date("2026-05-28T00:00:00.000Z");
     const delivery: DailyContentDeliveryRecord = {
       id: existing?.id ?? `delivery-${this.records.size + 1}`,
       guildId: input.guildId,
@@ -44,8 +47,8 @@ class InMemoryDeliveryStore implements DailyContentDeliveryStore {
       dedupeKey: key,
       status: "processing",
       attemptCount: (existing?.attemptCount ?? 0) + 1,
-      createdAt: existing?.createdAt ?? now,
-      updatedAt: now
+      createdAt: existing?.createdAt ?? claimedAt,
+      updatedAt: claimedAt
     };
     this.records.set(key, delivery);
     return { state: "claimed", delivery };
@@ -75,6 +78,10 @@ class InMemoryDeliveryStore implements DailyContentDeliveryStore {
 
   async listByGuild(guildId: string): Promise<DailyContentDeliveryRecord[]> {
     return [...this.records.values()].filter((record) => record.guildId === guildId);
+  }
+
+  seed(record: DailyContentDeliveryRecord): void {
+    this.records.set(record.dedupeKey, record);
   }
 
   private update(
@@ -161,5 +168,41 @@ describe("DailyContentProcessor", () => {
     expect(await deliveries.listByGuild("guild-placeholder-b")).toHaveLength(1);
     expect(await audits.listByGuild("guild-placeholder-a")).toHaveLength(1);
     expect(await audits.listByGuild("guild-placeholder-b")).toHaveLength(1);
+  });
+
+  it("recovers stale processing work once without changing its dedupe key", async () => {
+    const deliveries = new InMemoryDeliveryStore();
+    const staleAt = new Date("2026-05-28T00:00:00.000Z");
+    const recoveryAt = new Date("2026-05-28T00:16:00.000Z");
+    const dedupeKey = dailyContentDedupeKey(job);
+    deliveries.seed({
+      id: "delivery-stale",
+      guildId: job.guildId,
+      scheduleId: job.scheduleId,
+      targetDate: job.targetDate,
+      contentSlot: job.contentSlot,
+      channelId: job.channelId,
+      dedupeKey,
+      status: "processing",
+      attemptCount: 1,
+      createdAt: staleAt,
+      updatedAt: staleAt
+    });
+    const publisher = { publish: vi.fn().mockResolvedValue(undefined) };
+    const processor = new DailyContentProcessor(
+      deliveries,
+      publisher,
+      new InMemoryAuditLogStore(),
+      () => recoveryAt
+    );
+
+    const recovered = await processor.process(job);
+    const repeated = await processor.process(job);
+
+    expect(recovered.state).toBe("published");
+    expect(recovered.delivery.attemptCount).toBe(2);
+    expect(recovered.delivery.dedupeKey).toBe(dedupeKey);
+    expect(repeated.state).toBe("skipped");
+    expect(publisher.publish).toHaveBeenCalledTimes(1);
   });
 });

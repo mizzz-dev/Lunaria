@@ -67,3 +67,5 @@ Pluginは以下の情報を持ちます。
 `Daily Content` の第一段階では、ギルド別設定を既存の `PluginSetting` に保存し、`channelId`、IANA timezone、投稿時刻、設定済み template / content slot を検証します。
 
 Worker は `DailyContentDelivery` の dedupe key を使い、同一 `guildId / scheduleId / targetDate / contentSlot` の成功済み配信を再 publish しません。実際の Discord 投稿 transport と設定 UI は本段階には含めません。
+
+第二段階では、有効な `PluginSetting` から schedule の timezone と投稿時刻に基づいて due job を列挙し、`processing` の最終 claim から15分経過した delivery のみを同じ dedupe key で recovery できる内部境界を追加します。BullMQ / Redis runtime と本番 publisher の接続は引き続き後続 Issue とします。

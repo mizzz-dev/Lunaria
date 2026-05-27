@@ -2,6 +2,7 @@ import type { JsonObject, PluginMetadata } from "./plugins.js";
 
 export const DAILY_CONTENT_PLUGIN_ID = "daily-content";
 export const DAILY_CONTENT_WORKER_ACTOR_ID = "system:daily-content-worker";
+export const DAILY_CONTENT_PROCESSING_STALE_AFTER_MS = 15 * 60 * 1000;
 
 export type DailyContentSlot = "quote" | "question" | "mission";
 export type DailyContentDeliveryStatus = "processing" | "succeeded" | "retryable_failure";
@@ -54,7 +55,7 @@ export type DailyContentDeliveryClaim =
   | { readonly state: "already_processing"; readonly delivery: DailyContentDeliveryRecord };
 
 export interface DailyContentDeliveryStore {
-  claim(job: DailyContentDueJob): Promise<DailyContentDeliveryClaim>;
+  claim(job: DailyContentDueJob, claimedAt?: Date): Promise<DailyContentDeliveryClaim>;
   succeed(
     guildId: string,
     dedupeKey: string,
@@ -189,6 +190,26 @@ export function buildDailyContentDueJobs(input: {
   }));
 }
 
+export function listDailyContentDueJobs(input: {
+  readonly guildId: string;
+  readonly config: DailyContentConfig;
+  readonly now: Date;
+}): DailyContentDueJob[] {
+  return input.config.schedules.flatMap((schedule) => {
+    const localNow = getDailyContentLocalTime(input.now, schedule.timezone);
+
+    if (localNow.postingTime < schedule.postingTime) {
+      return [];
+    }
+
+    return buildDailyContentDueJobs({
+      guildId: input.guildId,
+      targetDate: localNow.targetDate,
+      schedule
+    });
+  });
+}
+
 export function isDailyContentConfig(value: unknown): value is DailyContentConfig {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return false;
@@ -196,7 +217,9 @@ export function isDailyContentConfig(value: unknown): value is DailyContentConfi
 
   const candidate = value as Partial<DailyContentConfig>;
   return (
+    hasOnlyKeys(value, ["schedules"]) &&
     Array.isArray(candidate.schedules) &&
+    candidate.schedules.length <= 20 &&
     candidate.schedules.every((rawSchedule: unknown) => {
       if (!rawSchedule || typeof rawSchedule !== "object" || Array.isArray(rawSchedule)) {
         return false;
@@ -204,11 +227,19 @@ export function isDailyContentConfig(value: unknown): value is DailyContentConfi
 
       const schedule = rawSchedule as Partial<DailyContentSchedule>;
       if (
+        !hasOnlyKeys(rawSchedule, ["id", "channelId", "timezone", "postingTime", "content"]) ||
         typeof schedule.id !== "string" ||
+        schedule.id.length === 0 ||
+        schedule.id.length > 120 ||
+        !/^[A-Za-z0-9_-]+$/.test(schedule.id) ||
         typeof schedule.channelId !== "string" ||
+        schedule.channelId.length === 0 ||
+        schedule.channelId.length > 32 ||
         typeof schedule.timezone !== "string" ||
         typeof schedule.postingTime !== "string" ||
-        !Array.isArray(schedule.content)
+        !Array.isArray(schedule.content) ||
+        schedule.content.length === 0 ||
+        schedule.content.length > 3
       ) {
         return false;
       }
@@ -229,15 +260,51 @@ export function isDailyContentConfig(value: unknown): value is DailyContentConfi
 
             const entry = rawEntry as Partial<DailyContentTemplate>;
             return (
+              hasOnlyKeys(rawEntry, ["slot", "template"]) &&
               (entry.slot === "quote" ||
                 entry.slot === "question" ||
                 entry.slot === "mission") &&
               typeof entry.template === "string" &&
-              entry.template.length > 0
+              entry.template.length > 0 &&
+              entry.template.length <= 1800
             );
           }
         )
       );
     })
   );
+}
+
+function getDailyContentLocalTime(now: Date, timezone: string): {
+  readonly targetDate: string;
+  readonly postingTime: string;
+} {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23"
+  }).formatToParts(now);
+  const valueByPart = new Map(parts.map((part) => [part.type, part.value]));
+  const year = valueByPart.get("year");
+  const month = valueByPart.get("month");
+  const day = valueByPart.get("day");
+  const hour = valueByPart.get("hour");
+  const minute = valueByPart.get("minute");
+
+  if (!year || !month || !day || !hour || !minute) {
+    throw new Error("DAILY_CONTENT_LOCAL_TIME_UNAVAILABLE");
+  }
+
+  return {
+    targetDate: `${year}-${month}-${day}`,
+    postingTime: `${hour}:${minute}`
+  };
+}
+
+function hasOnlyKeys(value: object, allowedKeys: readonly string[]): boolean {
+  return Object.keys(value).every((key) => allowedKeys.includes(key));
 }

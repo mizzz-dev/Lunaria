@@ -247,6 +247,9 @@ Daily Content の内部 scheduling foundation は、`PluginSetting` で検証済
 - 失敗した delivery は再試行可能な状態として保存し、次回処理で attempt を増やします。
 - Worker は dedupe key を渡す injectable publisher を通して配信し、Discord の本番 transport は後続 Issue で idempotency 契約とともに接続します。
 - 成功・失敗 audit には判別用 metadata のみを記録し、template 本文や transport error 本文を含めません。
+- Worker の orchestration 境界は有効な `PluginSetting` の検証済み設定から、schedule の IANA timezone における対象日と投稿時刻を判定し、投稿時刻以後の同日再走査でも同一 dedupe key の job を列挙します。
+- `processing` delivery の `updatedAt` は最終 claim 時刻として扱い、`DAILY_CONTENT_PROCESSING_STALE_AFTER_MS`（15分）を経過したものだけを guild scope の条件付き更新で再 claim します。成功済み delivery は recovery 対象にしません。
+- この段階では queue transport や repeatable job 登録は接続せず、due 列挙と processor dispatch のテスト可能な境界に限定します。
 
 ## 高リスク機能の制約
 
