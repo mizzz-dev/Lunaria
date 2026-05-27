@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { MessageFlags, type ChatInputCommandInteraction } from "discord.js";
+import { describe, expect, it, vi } from "vitest";
 import { lunariaCommand } from "./lunaria.js";
 
 describe("lunaria command", () => {
@@ -14,5 +15,19 @@ describe("lunaria command", () => {
       ])
     );
   });
-});
 
+  it("responds to ping privately using interaction flags", async () => {
+    const reply = vi.fn();
+    const interaction = {
+      options: { getSubcommand: () => "ping" },
+      reply
+    } as unknown as ChatInputCommandInteraction;
+
+    await lunariaCommand.execute(interaction);
+
+    expect(reply).toHaveBeenCalledWith({
+      content: "Lunaria is awake.",
+      flags: MessageFlags.Ephemeral
+    });
+  });
+});

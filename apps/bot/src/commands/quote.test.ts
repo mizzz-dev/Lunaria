@@ -1,6 +1,7 @@
 import type { QuoteRecord } from "@lunaria/core";
 import {
   ApplicationCommandType,
+  MessageFlags,
   type ButtonInteraction,
   type ChatInputCommandInteraction,
   type Message,
@@ -201,8 +202,69 @@ describe("quote command", () => {
     expect(fetch).not.toHaveBeenCalled();
     expect(quoteService.add).not.toHaveBeenCalled();
     expect(reply).toHaveBeenCalledWith(
-      expect.objectContaining({ content: "このquote操作を行う権限がありません。" })
+      expect.objectContaining({
+        content: "このquote操作を行う権限がありません。",
+        flags: MessageFlags.Ephemeral
+      })
     );
+  });
+
+  it("keeps guild-only rejection private", async () => {
+    const reply = vi.fn();
+
+    await createQuoteCommand(service()).execute({
+      guildId: null,
+      reply
+    } as unknown as ChatInputCommandInteraction);
+
+    expect(reply).toHaveBeenCalledWith({
+      content: "Guildでのみ利用できます。",
+      flags: MessageFlags.Ephemeral
+    });
+  });
+
+  it("keeps hide confirmation private", async () => {
+    const quoteService = service();
+    const reply = vi.fn();
+    const interaction = {
+      guildId: "guild-1",
+      guild: { ownerId: "moderator-1" },
+      user: { id: "moderator-1" },
+      options: {
+        getSubcommand: () => "hide",
+        getString: () => "quote-1"
+      },
+      reply
+    } as unknown as ChatInputCommandInteraction;
+
+    await createQuoteCommand(quoteService).execute(interaction);
+
+    expect(quoteService.hide).toHaveBeenCalled();
+    expect(reply).toHaveBeenCalledWith({
+      content: "Quoteを非表示にしました。",
+      flags: MessageFlags.Ephemeral
+    });
+  });
+
+  it("keeps invalid quote input errors private", async () => {
+    const reply = vi.fn();
+    const interaction = {
+      guildId: "guild-1",
+      guild: { ownerId: "moderator-1" },
+      user: { id: "moderator-1" },
+      options: {
+        getSubcommand: () => "add",
+        getString: () => "https://example.com/not-a-discord-message"
+      },
+      reply
+    } as unknown as ChatInputCommandInteraction;
+
+    await createQuoteCommand(service()).execute(interaction);
+
+    expect(reply).toHaveBeenCalledWith({
+      content: "同じGuildの本文または画像付きメッセージを指定してください。",
+      flags: MessageFlags.Ephemeral
+    });
   });
 
   it("registers one configurable message application command", () => {
