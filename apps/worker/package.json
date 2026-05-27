@@ -8,9 +8,10 @@
     "dev": "tsx watch src/index.ts",
     "lint": "tsc --noEmit -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "echo \"No worker tests yet\""
+    "test": "vitest run src"
   },
   "dependencies": {
+    "@lunaria/core": "workspace:*",
     "@lunaria/shared": "workspace:*"
   }
 }

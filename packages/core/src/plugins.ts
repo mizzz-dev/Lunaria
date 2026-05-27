@@ -55,7 +55,19 @@ export class PluginRegistry {
   private readonly plugins = new Map<string, PluginMetadata>();
   private readonly validators = new Map<string, ValidateFunction>();
 
-  constructor(private readonly ajv = new Ajv({ allErrors: true, strict: false })) {}
+  constructor(private readonly ajv = new Ajv({ allErrors: true, strict: false })) {
+    this.ajv.addFormat("iana-time-zone", {
+      type: "string",
+      validate: (value: string) => {
+        try {
+          new Intl.DateTimeFormat("en-US", { timeZone: value }).format();
+          return true;
+        } catch {
+          return false;
+        }
+      }
+    });
+  }
 
   register(plugin: PluginMetadata): void {
     if (this.plugins.has(plugin.id)) {

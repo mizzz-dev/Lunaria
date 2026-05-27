@@ -1,6 +1,6 @@
 # RBAC / Audit Log ポリシー
 
-最終更新日: 2026-05-27
+最終更新日: 2026-05-28
 
 Lunariaでは、管理操作と高リスク操作をRBACで制御し、重要な操作をAudit Logに残します。
 
@@ -19,6 +19,7 @@ Lunariaでは、管理操作と高リスク操作をRBACで制御し、重要な
 | `rules:manage` | Rule作成・編集 |
 | `quotes:create` | Quote登録 |
 | `quotes:manage` | Quote非表示・削除 |
+| `daily:manage` | Daily Content設定管理 |
 | `audit:read` | Audit Log閲覧 |
 | `recording:manage` | 録音管理 |
 | `server_ops:request` | Server Ops申請 |
@@ -29,6 +30,7 @@ Lunariaでは、管理操作と高リスク操作をRBACで制御し、重要な
 - Plugin設定変更
 - Rule作成・更新・削除
 - Quote作成・非表示
+- Daily Content delivery 成功・失敗
 - モデレーション操作
 - 録音開始・停止
 - Server Ops申請・承認・実行

@@ -1,6 +1,6 @@
 # データベース設計
 
-最終更新日: 2026-05-27
+最終更新日: 2026-05-28
 
 LunariaはPostgreSQL + Prismaを使い、ギルド単位の分離を基本にします。
 
@@ -23,6 +23,7 @@ LunariaはPostgreSQL + Prismaを使い、ギルド単位の分離を基本にし
 | Rule | trigger/condition/actionの自動化定義 | 実装済み |
 | AuditLog | 設定変更・操作・発火履歴 | 実装済み |
 | Quote | 名言・引用データ | 実装済み |
+| DailyContentDelivery | 日次投稿の試行・結果・重複防止 | 開発中 |
 | GameAccount | ゲームID連携 | 予定 |
 | ServerAgent | Server Ops Agent登録 | Preview |
 
@@ -35,6 +36,14 @@ await prisma.quote.findFirst({ where: { id: quoteId, guildId } });
 ```
 
 `id`だけで検索すると、別ギルドのデータを参照する危険があります。
+
+## Daily Content delivery
+
+`DailyContentDelivery` は Daily Content の投稿試行と結果を保存します。設定は重複モデルを作らず、既存の `PluginSetting.config` を利用します。
+
+- `dedupeKey` は `guildId / scheduleId / targetDate / contentSlot` から決定的に生成し、一意制約で重複処理を抑止する
+- `status` は処理中、成功、再試行可能な失敗を表し、成功済み delivery は再 publish しない
+- `attemptCount` と `failureCode` は運用調査と retry 判定に利用し、投稿本文や外部 transport の詳細エラーは保存しない
 
 ## マイグレーション運用
 

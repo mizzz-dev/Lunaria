@@ -20,5 +20,6 @@ pnpm --filter @lunaria/db db:studio
 - `Rule`: Rule Engine の trigger/condition/action 定義
 - `AuditLog`: 監査ログ
 - `RbacAssignment`: Lunaria内のRBAC割り当て
+- `DailyContentDelivery`: 日次投稿の試行結果とdeterministic dedupe管理
 
 設定履歴、差分、ロールバック、課金/利用制限は後続migrationで追加する。

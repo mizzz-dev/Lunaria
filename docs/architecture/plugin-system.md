@@ -1,6 +1,6 @@
 # Plugin System仕様
 
-最終更新日: 2026-05-27
+最終更新日: 2026-05-28
 
 Lunariaの機能はPlugin単位で管理します。PluginはSaaS版とセルフホスト版の両方で扱えることを前提にします。
 
@@ -48,7 +48,7 @@ Pluginは以下の情報を持ちます。
 | Core | 実装済み |
 | Quote | 実装済み |
 | AutoResponse | 実装済み |
-| Daily Content | 予定 |
+| Daily Content | 開発中（scheduling / delivery基盤） |
 | LFG | 予定 |
 | Moderation | 予定 |
 | Music | 予定 |
@@ -61,3 +61,9 @@ Pluginは以下の情報を持ちます。
 - Message Content Intentが必要なPluginは明記する
 - 危険操作を含むPluginはRBACと承認フローを必須にする
 - 未実装Pluginを実装済みとして扱わない
+
+## Daily Content scheduling foundation
+
+`Daily Content` の第一段階では、ギルド別設定を既存の `PluginSetting` に保存し、`channelId`、IANA timezone、投稿時刻、設定済み template / content slot を検証します。
+
+Worker は `DailyContentDelivery` の dedupe key を使い、同一 `guildId / scheduleId / targetDate / contentSlot` の成功済み配信を再 publish しません。実際の Discord 投稿 transport と設定 UI は本段階には含めません。

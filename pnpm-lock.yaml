@@ -102,6 +102,9 @@ importers:
 
   apps/worker:
     dependencies:
+      '@lunaria/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@lunaria/shared':
         specifier: workspace:*
         version: link:../../packages/shared

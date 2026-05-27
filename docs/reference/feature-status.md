@@ -1,6 +1,6 @@
 # 機能ステータス
 
-最終更新日: 2026-05-27
+最終更新日: 2026-05-28
 
 このドキュメントは、Lunaria の機能を実装状況別に整理するための一覧です。
 
@@ -45,6 +45,7 @@
 | AutoResponse複数ルール対応 | Community | 1ルール中心 | ルール一覧・複数ルール編集・A/B返信対応 |
 | Audit Stream | Dashboard | 監査ログ取得APIあり | UI表示・フィルタ・差分表示を強化 |
 | Quote管理UI | Dashboard | APIあり | 一覧、非表示、検索、タグ管理UIを追加 |
+| Daily Content scheduling foundation | Community / Worker | 設定schema、delivery dedupe、processor/audit境界を実装 | 本番Discord publisherと設定UIを別Issueで追加 |
 | ドキュメント整備 | Documentation | READMEと要件文書あり | コマンド一覧・機能一覧・セットアップを継続更新 |
 
 ## 予定
@@ -54,7 +55,6 @@
 | Plugin Store | Dashboard | プラグイン有効化/無効化UI | SaaS/セルフホスト両対応を想定 |
 | Rule Builder | Dashboard | trigger/condition/actionをGUI編集 | Rule Engineと連携 |
 | Config History / Rollback | Core Platform | 設定履歴、差分、ロールバック | 監査ログと連携 |
-| Daily Content | Community | 今日の名言、質問、ミッションを自動投稿 | Worker/Scheduler連携 |
 | LFG | LFG / Events | 募集作成、参加、仮参加、辞退 | `/lfg create`予定 |
 | Team Split | LFG / Events | ランダム/条件付きチーム分け | ゲーム連携後にランク考慮 |
 | Community Events | LFG / Events | イベント作成、参加管理、リマインド | Discordイベント/VC連携予定 |

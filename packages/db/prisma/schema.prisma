@@ -8,15 +8,16 @@ datasource db {
 }
 
 model Guild {
-  id              String           @id
-  name            String?
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  pluginSettings  PluginSetting[]
-  rules           Rule[]
-  auditLogs       AuditLog[]
-  rbacAssignments RbacAssignment[]
-  quotes          Quote[]
+  id                     String                 @id
+  name                   String?
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+  pluginSettings         PluginSetting[]
+  rules                  Rule[]
+  auditLogs              AuditLog[]
+  rbacAssignments        RbacAssignment[]
+  quotes                 Quote[]
+  dailyContentDeliveries DailyContentDelivery[]
 }
 
 model PluginSetting {
@@ -101,4 +102,24 @@ model Quote {
 
   @@unique([guildId, sourceMessageId])
   @@index([guildId, hiddenAt, createdAt])
+}
+
+model DailyContentDelivery {
+  id           String    @id @default(cuid())
+  guildId      String
+  scheduleId   String
+  targetDate   String
+  contentSlot  String
+  channelId    String
+  dedupeKey    String    @unique
+  status       String
+  attemptCount Int       @default(1)
+  failureCode  String?
+  publishedAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  guild        Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@index([guildId, targetDate])
+  @@index([guildId, status, createdAt])
 }
