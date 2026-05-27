@@ -15,6 +15,7 @@ import {
   ButtonStyle,
   ChatInputCommandInteraction,
   ContextMenuCommandBuilder,
+  MessageFlags,
   MessageContextMenuCommandInteraction,
   PermissionFlagsBits,
   SlashCommandBuilder,
@@ -81,7 +82,10 @@ export function createQuoteCommand(service: QuoteCommandService) {
     async execute(interaction: ChatInputCommandInteraction): Promise<void> {
       const guildId = interaction.guildId;
       if (!guildId) {
-        await interaction.reply({ content: "Guildでのみ利用できます。", ephemeral: true });
+        await interaction.reply({
+          content: "Guildでのみ利用できます。",
+          flags: MessageFlags.Ephemeral
+        });
         return;
       }
 
@@ -139,11 +143,17 @@ export function createQuoteCommand(service: QuoteCommandService) {
             guildId,
             quoteId: interaction.options.getString("quote-id", true)
           });
-          await interaction.reply({ content: "Quoteを非表示にしました。", ephemeral: true });
+          await interaction.reply({
+            content: "Quoteを非表示にしました。",
+            flags: MessageFlags.Ephemeral
+          });
           return;
         }
 
-        await interaction.reply({ content: "未知のquote操作です。", ephemeral: true });
+        await interaction.reply({
+          content: "未知のquote操作です。",
+          flags: MessageFlags.Ephemeral
+        });
       } catch (error) {
         logUnexpectedQuoteError(error);
         await replyWithError(interaction, error);
@@ -161,7 +171,10 @@ export function createQuoteMessageCommand(service: QuoteCommandService) {
     async execute(interaction: MessageContextMenuCommandInteraction): Promise<void> {
       const guildId = interaction.guildId;
       if (!guildId) {
-        await interaction.reply({ content: "Guildでのみ利用できます。", ephemeral: true });
+        await interaction.reply({
+          content: "Guildでのみ利用できます。",
+          flags: MessageFlags.Ephemeral
+        });
         return;
       }
 
@@ -198,7 +211,10 @@ export async function handleQuoteCardButtonInteraction(
 
   const guildId = interaction.guildId;
   if (!guildId) {
-    await interaction.reply({ content: "Guildでのみ利用できます。", ephemeral: true });
+    await interaction.reply({
+      content: "Guildでのみ利用できます。",
+      flags: MessageFlags.Ephemeral
+    });
     return true;
   }
 
@@ -206,7 +222,7 @@ export async function handleQuoteCardButtonInteraction(
   if (!hasPermission(actor, "quotes:create")) {
     await interaction.reply({
       content: "このquote操作を行う権限がありません。",
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
     return true;
   }
@@ -235,9 +251,9 @@ export async function handleQuoteCardButtonInteraction(
     logUnexpectedQuoteError(error);
     const content = commandErrorMessage(error);
     if (interaction.deferred || interaction.replied) {
-      await interaction.followUp({ content, ephemeral: true });
+      await interaction.followUp({ content, flags: MessageFlags.Ephemeral });
     } else {
-      await interaction.reply({ content, ephemeral: true });
+      await interaction.reply({ content, flags: MessageFlags.Ephemeral });
     }
   }
 
@@ -567,7 +583,7 @@ async function replyWithError(
     return;
   }
 
-  await interaction.reply({ content, ephemeral: true });
+  await interaction.reply({ content, flags: MessageFlags.Ephemeral });
 }
 
 export async function handleQuoteReplyMessage(

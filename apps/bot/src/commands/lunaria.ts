@@ -1,5 +1,6 @@
 import {
   ChatInputCommandInteraction,
+  MessageFlags,
   SlashCommandBuilder
 } from "discord.js";
 
@@ -17,15 +18,14 @@ export const lunariaCommand = {
     if (subcommand === "ping") {
       await interaction.reply({
         content: "Lunaria is awake.",
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
       return;
     }
 
     await interaction.reply({
       content: "Unknown Lunaria command.",
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
   }
 };
-
