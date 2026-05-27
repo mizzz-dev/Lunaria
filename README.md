@@ -55,6 +55,7 @@ Lunaria は、ゲームコミュニティ向けの Discord ボットおよびダ
 * [デプロイ手順](docs/operations/deployment-guide.md)
 * [監視・ログ方針](docs/operations/monitoring-logging.md)
 * [バックアップ・復元方針](docs/operations/backup-restore.md)
+* [Notion運用ガイド](docs/operations/notion-workspace-guide.md)
 * [利用規約 草案](docs/legal/terms-draft.md)
 * [プライバシーポリシー 草案](docs/legal/privacy-policy-draft.md)
 * [録音ポリシー 草案](docs/legal/recording-policy-draft.md)
