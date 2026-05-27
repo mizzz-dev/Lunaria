@@ -8,6 +8,11 @@ Lunaria は、ゲームコミュニティ向けの Discord ボットおよびダ
 
 計画作成、リポジトリの基礎構築、TypeScript モノリポの骨組み、ローカルの PostgreSQL/Redis 実行環境、Discord ボットの ping コマンド、Discord OAuth によるギルドセレクター、コアプラグイン/RBAC/監査/ルールエンジンのパッケージ、および初期の Prisma 永続化スキーマ。
 
+## ドキュメント入口
+
+* [ドキュメント索引](docs/reference/docs-index.md)
+* [ドキュメント運用ルール](docs/development/documentation-policy.md)
+
 ## リファレンス
 
 * [コマンド一覧](docs/reference/commands.md)
