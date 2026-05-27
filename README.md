@@ -2,71 +2,59 @@
 
 Lunaria は、ゲームコミュニティ向けの Discord ボットおよびダッシュボードです。
 
-このプロジェクトは、プライベートな Discord ギルド向けの内部ボットとして始まりました。今後は、Web ダッシュボード、ルールエンジン、RBAC（ロールベースのアクセス制御）、監査ログ、AI アシスタンス、ゲーム連携、録音/録画の同意フロー、サーバー運用ワークフローを備えた、プラグインベースのコミュニティ運用プラットフォームへと成長させることを目的として設計されています。
+このプロジェクトは、Web ダッシュボード、ルールエンジン、RBAC、監査ログ、AI アシスタンス、ゲーム連携、録音同意フロー、サーバー運用ワークフローを備えた、プラグインベースのコミュニティ運用プラットフォームへと成長させることを目的としています。
 
 ## 現在のステータス
 
 計画作成、リポジトリの基礎構築、TypeScript モノリポの骨組み、ローカルの PostgreSQL/Redis 実行環境、Discord ボットの ping コマンド、Discord OAuth によるギルドセレクター、コアプラグイン/RBAC/監査/ルールエンジンのパッケージ、および初期の Prisma 永続化スキーマ。
 
-初期ドキュメント:
-
-* `docs/requirements/lunaria-prd.md`
-* `docs/requirements/initial-decisions.md`
-* `docs/architecture/lunaria-architecture.md`
-* `docs/development/ai-native-development.md`
-* `docs/setup/setup-plan.md`
-* `docs/development/linear-backlog.md`
-
 ## リファレンス
-
-利用者・開発者向けの一覧ドキュメントです。
 
 * [コマンド一覧](docs/reference/commands.md)
 * [機能一覧](docs/reference/features.md)
 * [機能ステータス](docs/reference/feature-status.md)
+* [APIエンドポイント一覧](docs/reference/api-endpoints.md)
+
+## セットアップ
+
+* [ローカルセットアップ](docs/setup/local-setup.md)
+* [環境変数一覧](docs/setup/environment-variables.md)
+* [Discord Developer Portal設定](docs/setup/discord-developer-portal.md)
+* [トラブルシューティング](docs/setup/troubleshooting.md)
 
 ## アーキテクチャ詳細
 
-実装時に参照する処理フローとドメインロジックです。
-
 * [処理フロー](docs/architecture/process-flows.md)
 * [ドメインロジック](docs/architecture/domain-logic.md)
+* [データベース設計](docs/architecture/database-schema.md)
+* [API設計](docs/architecture/api-design.md)
+* [Plugin System仕様](docs/architecture/plugin-system.md)
+* [Rule Engine仕様](docs/architecture/rule-engine.md)
 
-## 初期 MVP
+## 開発ガイド
 
-* `discord.js` をベースにした Discord ボットの基盤
-* Web ダッシュボード
-* Discord OAuth2 ログイン
-* ギルドセレクター
-* プラグインシステム
-* RBAC および監査ログ
-* ルールエンジン
-* AutoResponse、Quote（引用）、Daily Content（日替わりコンテンツ）、LFG（募集）、および基本的なモデレーションプラグイン
+* [AI Native Development](docs/development/ai-native-development.md)
+* [Linear Backlog](docs/development/linear-backlog.md)
+* [Plugin開発ガイド](docs/development/plugin-development-guide.md)
+* [Rule作成ガイド](docs/development/rule-authoring-guide.md)
+* [Botコマンド追加ガイド](docs/development/bot-command-guide.md)
+* [Dashboard開発ガイド](docs/development/dashboard-guide.md)
 
-## AutoResponse v1
+## セキュリティ・運用・法務草案
 
-AutoResponse v1 は、ダッシュボードから選択中のギルドに対して、1つのキーワード返信ルールを保存できます。
+* [セキュリティポリシー](docs/security/security-policy.md)
+* [Secret管理](docs/security/secret-management.md)
+* [RBAC / Audit Log ポリシー](docs/security/rbac-audit-policy.md)
+* [データ保持ポリシー](docs/security/data-retention.md)
+* [リリース手順](docs/operations/release-process.md)
+* [デプロイ手順](docs/operations/deployment-guide.md)
+* [監視・ログ方針](docs/operations/monitoring-logging.md)
+* [バックアップ・復元方針](docs/operations/backup-restore.md)
+* [利用規約 草案](docs/legal/terms-draft.md)
+* [プライバシーポリシー 草案](docs/legal/privacy-policy-draft.md)
+* [録音ポリシー 草案](docs/legal/recording-policy-draft.md)
 
-保存される内容:
-
-* `PluginSetting`: AutoResponse の有効/無効および設定 JSON
-* `Rule`: `messageCreate` 用の keyword / channel / cooldown / reply ルール
-* `AuditLog`: 設定変更とルールの発火
-
-ボットがメッセージの本文を読み取るには、Discord Developer Portal で Message Content Intent を有効にする必要があります。
-
-```text
-Discord Developer Portal
- > Lunaria Bot
- > Bot
- > Privileged Gateway Intents
- > Message Content Intent
-
-```
-
-## ローカルセットアップ
-
-現在のローカルでの開発フロー:
+## ローカルセットアップ概要
 
 ```powershell
 cp .env.example .env
@@ -77,87 +65,22 @@ pnpm --filter @lunaria/db db:dev -- --name init_lunaria_core
 pnpm typecheck
 pnpm build
 pnpm test
-
 ```
 
-ローカルサービスの確認:
-
-```powershell
-docker compose ps
-
-```
-
-もし `docker compose up -d` が `dockerDesktopLinuxEngine` が見つからないというエラーで失敗する場合は、Docker Desktop を起動して Linux エンジンの準備が整うまで待ち、その後コマンドを再実行してください。
-すでに別の PostgreSQL または Redis インスタンスが `5432` や `6379` ポートを使用している場合は、ローカルの `.env` にある `POSTGRES_PORT`、`REDIS_PORT`、`DATABASE_URL`、`REDIS_URL` を変更してください。
-
-データベースのマイグレーションは `@lunaria/db` によって管理されています。
-
-一般的なデータベースコマンド:
-
-```powershell
-pnpm --filter @lunaria/db db:generate
-pnpm --filter @lunaria/db db:dev -- --name your_migration_name
-pnpm --filter @lunaria/db db:deploy
-
-```
-
-API シェルの起動:
+API起動:
 
 ```powershell
 pnpm --filter @lunaria/api dev
-
 ```
 
-起動後、`http://localhost:4000/health` を開きます。
-
-`.env` に Discord のシークレットを設定した後、ボットシェルを起動します:
+Bot起動:
 
 ```powershell
 pnpm --filter @lunaria/bot dev
-
 ```
 
-現在のボットは `/lunaria ping` を登録し、PostgreSQL から保存された `messageCreate` ルールを実行します。メッセージのテキストを検査する AutoResponse ルールには、Discord Developer Portal で Message Content 特権インテント（Privileged Intent）を有効にする必要があります。
-
-ギルドへのコマンド登録が `Missing Access` で失敗する場合は、以下の両方のスコープを指定してボットを対象のギルドに招待してください:
-
-```text
-bot applications.commands
-
-```
-
-開発用招待 URL のテンプレート:
-
-```text
-https://discord.com/oauth2/authorize?client_id=YOUR_CLIENT_ID&permissions=2147486720&scope=bot%20applications.commands
-
-```
-
-## ワークスペース
-
-```text
-apps/
- api/
- bot/
- dashboard/
- worker/
-packages/
- core/
- db/
- shared/
-
-```
+詳細は [ローカルセットアップ](docs/setup/local-setup.md) を参照してください。
 
 ## セキュリティ
 
-このリポジトリは公開（パブリック）を前提としています。
-
-以下のファイルや情報は**絶対にコミットしないでください**:
-
-* `.env`
-* Discord ボットのトークン
-* OAuth のシークレット
-* AI プロバイダーの API キー
-* Riot API キー
-* 本番環境のデータベースダンプ
-* ユーザーの個人データ
+このリポジトリは公開を前提としています。`.env`、Discord関連の認証情報、OAuth関連の認証情報、AI/APIキー、本番DBダンプ、ユーザーの個人データはコミットしないでください。
