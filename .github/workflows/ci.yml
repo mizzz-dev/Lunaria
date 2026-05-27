@@ -44,6 +44,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Remove stale TypeScript build metadata
+        run: find apps packages -name "*.tsbuildinfo" -delete
+
+      - name: Generate Prisma client
+        run: pnpm --filter @lunaria/db db:generate
+
       - name: Lint
         run: pnpm lint
 
