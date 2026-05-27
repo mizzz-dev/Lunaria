@@ -25,6 +25,13 @@ Lunaria は、ゲームコミュニティ向けの Discord ボットおよびダ
 * [機能一覧](docs/reference/features.md)
 * [機能ステータス](docs/reference/feature-status.md)
 
+## アーキテクチャ詳細
+
+実装時に参照する処理フローとドメインロジックです。
+
+* [処理フロー](docs/architecture/process-flows.md)
+* [ドメインロジック](docs/architecture/domain-logic.md)
+
 ## 初期 MVP
 
 * `discord.js` をベースにした Discord ボットの基盤
