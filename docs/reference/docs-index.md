@@ -68,6 +68,7 @@
 | デプロイ手順 | `docs/operations/deployment-guide.md` | デプロイ方針 | 開発者 / 運用者 | 本番構成変更時 | 運用中 |
 | 監視・ログ方針 | `docs/operations/monitoring-logging.md` | 監視・ログ | 運用者 | 監視構成変更時 | 運用中 |
 | バックアップ・復元方針 | `docs/operations/backup-restore.md` | Backup/Restore | 運用者 | DB/Storage構成変更時 | 運用中 |
+| Notion運用ガイド | `docs/operations/notion-workspace-guide.md` | Notion Hub/DBの業務運用 | 開発者 / 運用者 | Notion DB構成・同期ルール変更時 | 運用中 |
 | 利用規約 草案 | `docs/legal/terms-draft.md` | Legal草案 | 運用者 | Public Alpha前 | 草案 |
 | プライバシーポリシー 草案 | `docs/legal/privacy-policy-draft.md` | Privacy草案 | 運用者 | Public Alpha前 | 草案 |
 | 録音ポリシー 草案 | `docs/legal/recording-policy-draft.md` | Recording方針 | 運用者 | Recording実装前 | 草案 |
@@ -88,6 +89,8 @@ Notion側で管理したい項目:
 - 更新トリガー
 - 関連Issue
 - 関連PR
+
+Notion DBの使い方は `docs/operations/notion-workspace-guide.md` を参照します。
 
 ## 次に追加する候補
 
