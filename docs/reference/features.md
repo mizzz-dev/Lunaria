@@ -1,6 +1,6 @@
 # 機能一覧
 
-最終更新日: 2026-05-27
+最終更新日: 2026-05-28
 
 このドキュメントは、Lunaria が提供する機能をカテゴリ別に整理した機能カタログです。実装状況は [`feature-status.md`](./feature-status.md) を参照してください。
 
@@ -39,7 +39,7 @@
 | Quote | 良い発言を保存し、ランダム表示や画像カード化を行う | 実装済み | `/quote add`, `/quote random`, `/quote hide`, メッセージコンテキストメニュー対応 |
 | Quote画像カード | QuoteをOGP風の画像として生成する | 実装済み | sharpで生成。デザイン・背景・アイコン位置を切替可能 |
 | AutoResponse | 特定キーワードに自動返信する | 実装済み | Dashboardから1つのキーワード返信ルールを保存可能 |
-| Daily Content | 今日の名言、質問、ミッションなどを自動投稿する | 予定 | Worker/Scheduler連携予定 |
+| Daily Content | 今日の名言、質問、ミッションなどを自動投稿する | 開発中 | 内部 scheduling / dedupe / audit 基盤のみ。本番投稿と設定UIは未実装 |
 | Highlight / Summary | 人気投稿や週報を生成する | 予定 | AIやAnalyticsと連携予定 |
 | Community Economy | ポイント、称号、交換要素 | 予定 | 不正対策が必要 |
 

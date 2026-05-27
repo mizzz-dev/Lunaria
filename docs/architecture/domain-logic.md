@@ -1,6 +1,6 @@
 # ドメインロジック
 
-最終更新日: 2026-05-27
+最終更新日: 2026-05-28
 
 このドキュメントは、Lunaria の実装で守るべきドメインロジック、責務分離、データ境界、権限・監査・安全設計を整理します。
 
@@ -26,6 +26,7 @@ Lunaria は複数ギルドで利用される前提のため、主要データは
 - Rule
 - AuditLog
 - Quote
+- DailyContentDelivery
 - GameAccount
 - ServerAgent
 - 将来のLFG、Event、Recording、Billing Entitlement
@@ -236,6 +237,16 @@ Workerは、即時応答に向かない処理を担当します。
 - 再試行可能な処理はJob化します。
 - 二重実行を避けるため、Jobにはidempotency keyを持たせる設計にします。
 - 失敗時はAudit Logまたは運用ログに残します。
+
+### Daily Content delivery
+
+Daily Content の内部 scheduling foundation は、`PluginSetting` で検証済み設定を持ち、Worker が due job として template slot 単位の delivery を処理します。
+
+- dedupe key は `guildId / scheduleId / targetDate / contentSlot` を含めます。
+- 成功した delivery は retry や同一 job 再投入でも publish しません。
+- 失敗した delivery は再試行可能な状態として保存し、次回処理で attempt を増やします。
+- Worker は dedupe key を渡す injectable publisher を通して配信し、Discord の本番 transport は後続 Issue で idempotency 契約とともに接続します。
+- 成功・失敗 audit には判別用 metadata のみを記録し、template 本文や transport error 本文を含めません。
 
 ## 高リスク機能の制約
 
