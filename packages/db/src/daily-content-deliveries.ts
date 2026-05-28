@@ -1,4 +1,5 @@
 import {
+  DAILY_CONTENT_PROCESSING_STALE_AFTER_MS,
   dailyContentDedupeKey,
   type DailyContentDeliveryClaim,
   type DailyContentDeliveryRecord,
@@ -29,7 +30,7 @@ type DeliveryRow = {
 export class PrismaDailyContentDeliveryStore implements DailyContentDeliveryStore {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async claim(job: DailyContentDueJob): Promise<DailyContentDeliveryClaim> {
+  async claim(job: DailyContentDueJob, claimedAt = new Date()): Promise<DailyContentDeliveryClaim> {
     await ensureGuild(this.prisma, { id: job.guildId });
     const dedupeKey = dailyContentDedupeKey(job);
     const existing = await this.prisma.dailyContentDelivery.findUnique({
@@ -37,7 +38,7 @@ export class PrismaDailyContentDeliveryStore implements DailyContentDeliveryStor
     });
 
     if (existing) {
-      return this.claimExisting(job.guildId, existing);
+      return this.claimExisting(job.guildId, existing, claimedAt);
     }
 
     try {
@@ -49,7 +50,8 @@ export class PrismaDailyContentDeliveryStore implements DailyContentDeliveryStor
           contentSlot: job.contentSlot,
           channelId: job.channelId,
           dedupeKey,
-          status: "processing"
+          status: "processing",
+          updatedAt: claimedAt
         }
       });
       return { state: "claimed", delivery: this.toDomain(delivery) };
@@ -66,7 +68,7 @@ export class PrismaDailyContentDeliveryStore implements DailyContentDeliveryStor
         throw error;
       }
 
-      return this.claimExisting(job.guildId, concurrent);
+      return this.claimExisting(job.guildId, concurrent, claimedAt);
     }
   }
 
@@ -122,7 +124,8 @@ export class PrismaDailyContentDeliveryStore implements DailyContentDeliveryStor
 
   private async claimExisting(
     guildId: string,
-    record: DeliveryRow
+    record: DeliveryRow,
+    claimedAt: Date
   ): Promise<DailyContentDeliveryClaim> {
     if (record.guildId !== guildId) {
       throw new Error("DAILY_CONTENT_DELIVERY_SCOPE_MISMATCH");
@@ -133,7 +136,34 @@ export class PrismaDailyContentDeliveryStore implements DailyContentDeliveryStor
     }
 
     if (record.status === "processing") {
-      return { state: "already_processing", delivery: this.toDomain(record) };
+      const staleBefore = new Date(claimedAt.getTime() - DAILY_CONTENT_PROCESSING_STALE_AFTER_MS);
+
+      if (record.updatedAt > staleBefore) {
+        return { state: "already_processing", delivery: this.toDomain(record) };
+      }
+
+      const recovered = await this.prisma.dailyContentDelivery.updateMany({
+        where: {
+          id: record.id,
+          guildId,
+          status: "processing",
+          updatedAt: { lte: staleBefore }
+        },
+        data: {
+          attemptCount: { increment: 1 },
+          failureCode: null,
+          updatedAt: claimedAt
+        }
+      });
+
+      if (recovered.count !== 1) {
+        return this.resolveConcurrentClaim(guildId, record.dedupeKey);
+      }
+
+      return {
+        state: "claimed",
+        delivery: await this.requireByGuildKey(guildId, record.dedupeKey)
+      };
     }
 
     if (record.status !== "retryable_failure") {
@@ -145,21 +175,29 @@ export class PrismaDailyContentDeliveryStore implements DailyContentDeliveryStor
       data: {
         status: "processing",
         attemptCount: { increment: 1 },
-        failureCode: null
+        failureCode: null,
+        updatedAt: claimedAt
       }
     });
 
     if (claimed.count !== 1) {
-      const current = await this.requireByGuildKey(guildId, record.dedupeKey);
-      return current.status === "succeeded"
-        ? { state: "already_succeeded", delivery: current }
-        : { state: "already_processing", delivery: current };
+      return this.resolveConcurrentClaim(guildId, record.dedupeKey);
     }
 
     return {
       state: "claimed",
       delivery: await this.requireByGuildKey(guildId, record.dedupeKey)
     };
+  }
+
+  private async resolveConcurrentClaim(
+    guildId: string,
+    dedupeKey: string
+  ): Promise<DailyContentDeliveryClaim> {
+    const current = await this.requireByGuildKey(guildId, dedupeKey);
+    return current.status === "succeeded"
+      ? { state: "already_succeeded", delivery: current }
+      : { state: "already_processing", delivery: current };
   }
 
   private async requireByGuildKey(

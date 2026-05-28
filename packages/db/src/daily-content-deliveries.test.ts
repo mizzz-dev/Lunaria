@@ -1,3 +1,4 @@
+import { DAILY_CONTENT_PROCESSING_STALE_AFTER_MS } from "@lunaria/core";
 import type { PrismaClient } from "@prisma/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PrismaDailyContentDeliveryStore } from "./daily-content-deliveries.js";
@@ -49,14 +50,15 @@ describe("PrismaDailyContentDeliveryStore", () => {
 
   it("claims a delivery using a deterministic guild-scoped key", async () => {
     const store = new PrismaDailyContentDeliveryStore(client as unknown as PrismaClient);
-    const claim = await store.claim(job);
+    const claim = await store.claim(job, createdAt);
 
     expect(claim.state).toBe("claimed");
     expect(client.dailyContentDelivery.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         guildId: "guild-placeholder-a",
         dedupeKey: record.dedupeKey,
-        status: "processing"
+        status: "processing",
+        updatedAt: createdAt
       })
     });
   });
@@ -87,7 +89,7 @@ describe("PrismaDailyContentDeliveryStore", () => {
     });
     const store = new PrismaDailyContentDeliveryStore(client as unknown as PrismaClient);
 
-    const claim = await store.claim(job);
+    const claim = await store.claim(job, createdAt);
 
     expect(claim.state).toBe("claimed");
     expect(client.dailyContentDelivery.updateMany).toHaveBeenCalledWith({
@@ -95,10 +97,55 @@ describe("PrismaDailyContentDeliveryStore", () => {
       data: {
         status: "processing",
         attemptCount: { increment: 1 },
-        failureCode: null
+        failureCode: null,
+        updatedAt: createdAt
       }
     });
     expect(claim.delivery.attemptCount).toBe(2);
+  });
+
+  it("recovers only a stale processing delivery using the same scoped key", async () => {
+    const recoveryAt = new Date("2026-05-28T00:30:00.000Z");
+    const staleBefore = new Date(recoveryAt.getTime() - DAILY_CONTENT_PROCESSING_STALE_AFTER_MS);
+    client.dailyContentDelivery.findUnique.mockResolvedValue({
+      ...record,
+      updatedAt: staleBefore
+    });
+    client.dailyContentDelivery.findFirst.mockResolvedValue({
+      ...record,
+      attemptCount: 2,
+      updatedAt: recoveryAt
+    });
+    const store = new PrismaDailyContentDeliveryStore(client as unknown as PrismaClient);
+
+    const claim = await store.claim(job, recoveryAt);
+
+    expect(claim.state).toBe("claimed");
+    expect(client.dailyContentDelivery.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: "delivery-1",
+        guildId: "guild-placeholder-a",
+        status: "processing",
+        updatedAt: { lte: staleBefore }
+      },
+      data: {
+        attemptCount: { increment: 1 },
+        failureCode: null,
+        updatedAt: recoveryAt
+      }
+    });
+    expect(claim.delivery.dedupeKey).toBe(record.dedupeKey);
+  });
+
+  it("does not recover a processing delivery before its timeout", async () => {
+    const recoveryAt = new Date("2026-05-28T00:10:00.000Z");
+    client.dailyContentDelivery.findUnique.mockResolvedValue(record);
+    const store = new PrismaDailyContentDeliveryStore(client as unknown as PrismaClient);
+
+    const claim = await store.claim(job, recoveryAt);
+
+    expect(claim.state).toBe("already_processing");
+    expect(client.dailyContentDelivery.updateMany).not.toHaveBeenCalled();
   });
 
   it("lists deliveries within one guild only", async () => {

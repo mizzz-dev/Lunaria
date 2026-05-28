@@ -29,7 +29,7 @@ export class DailyContentProcessor {
   ) {}
 
   async process(job: DailyContentDueJob): Promise<DailyContentProcessingResult> {
-    const claim = await this.deliveries.claim(job);
+    const claim = await this.deliveries.claim(job, this.now());
 
     if (claim.state !== "claimed") {
       return {

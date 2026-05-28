@@ -4,7 +4,8 @@ import {
   buildDailyContentDueJobs,
   dailyContentDedupeKey,
   dailyContentPlugin,
-  isDailyContentConfig
+  isDailyContentConfig,
+  listDailyContentDueJobs
 } from "./daily-content.js";
 import { PluginRegistry } from "./plugins.js";
 
@@ -36,6 +37,7 @@ describe("Daily Content plugin", () => {
     expect(isDailyContentConfig({ schedules: [{ ...schedule, timezone: "Tokyo/invalid" }] })).toBe(
       false
     );
+    expect(isDailyContentConfig({ schedules: [{ ...schedule, unexpected: true }] })).toBe(false);
   });
 
   it("builds one due job per configured content slot", () => {
@@ -47,6 +49,46 @@ describe("Daily Content plugin", () => {
 
     expect(jobs.map((job) => job.contentSlot)).toEqual(["question", "mission"]);
     expect(jobs[0]?.channelId).toBe("channel-placeholder-1");
+  });
+
+  it("lists jobs only after the posting time in the schedule timezone", () => {
+    const config = { schedules: [schedule] };
+    const beforeDue = listDailyContentDueJobs({
+      guildId: "guild-placeholder-a",
+      config,
+      now: new Date("2026-05-27T23:29:00.000Z")
+    });
+    const afterDue = listDailyContentDueJobs({
+      guildId: "guild-placeholder-a",
+      config,
+      now: new Date("2026-05-27T23:45:00.000Z")
+    });
+    const sameDayRescan = listDailyContentDueJobs({
+      guildId: "guild-placeholder-a",
+      config,
+      now: new Date("2026-05-28T01:00:00.000Z")
+    });
+
+    expect(beforeDue).toEqual([]);
+    expect(afterDue.map((job) => job.targetDate)).toEqual(["2026-05-28", "2026-05-28"]);
+    expect(sameDayRescan.map(dailyContentDedupeKey)).toEqual(afterDue.map(dailyContentDedupeKey));
+  });
+
+  it("selects a new target date at the Asia/Tokyo date boundary", () => {
+    const midnightSchedule = { ...schedule, postingTime: "00:00" };
+    const previousDate = listDailyContentDueJobs({
+      guildId: "guild-placeholder-a",
+      config: { schedules: [midnightSchedule] },
+      now: new Date("2026-05-27T14:59:00.000Z")
+    });
+    const nextDate = listDailyContentDueJobs({
+      guildId: "guild-placeholder-a",
+      config: { schedules: [midnightSchedule] },
+      now: new Date("2026-05-27T15:00:00.000Z")
+    });
+
+    expect(previousDate[0]?.targetDate).toBe("2026-05-27");
+    expect(nextDate[0]?.targetDate).toBe("2026-05-28");
   });
 
   it("uses guild, schedule, target date and content slot in its dedupe key", () => {

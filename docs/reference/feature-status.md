@@ -45,7 +45,7 @@
 | AutoResponse複数ルール対応 | Community | 1ルール中心 | ルール一覧・複数ルール編集・A/B返信対応 |
 | Audit Stream | Dashboard | 監査ログ取得APIあり | UI表示・フィルタ・差分表示を強化 |
 | Quote管理UI | Dashboard | APIあり | 一覧、非表示、検索、タグ管理UIを追加 |
-| Daily Content scheduling foundation | Community / Worker | 設定schema、delivery dedupe、processor/audit境界を実装 | 本番Discord publisherと設定UIを別Issueで追加 |
+| Daily Content scheduling foundation | Community / Worker | 設定schema、timezone due列挙、delivery dedupe / stale recovery、processor/audit境界を実装 | BullMQ接続、本番Discord publisher、設定UIを別Issueで追加 |
 | ドキュメント整備 | Documentation | READMEと要件文書あり | コマンド一覧・機能一覧・セットアップを継続更新 |
 
 ## 予定

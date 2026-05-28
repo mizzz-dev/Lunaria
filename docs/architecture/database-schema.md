@@ -44,6 +44,8 @@ await prisma.quote.findFirst({ where: { id: quoteId, guildId } });
 - `dedupeKey` は `guildId / scheduleId / targetDate / contentSlot` から決定的に生成し、一意制約で重複処理を抑止する
 - `status` は処理中、成功、再試行可能な失敗を表し、成功済み delivery は再 publish しない
 - `attemptCount` と `failureCode` は運用調査と retry 判定に利用し、投稿本文や外部 transport の詳細エラーは保存しない
+- `status = processing` の間は既存の `updatedAt` を最終 claim 時刻として扱い、15分を経過した delivery のみ同じ `dedupeKey` で recovery claim する
+- recovery claim は `guildId`、`status`、stale 閾値を含む条件付き更新で行い、別 guild や成功済み delivery を回収しない
 
 ## マイグレーション運用
 
