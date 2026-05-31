@@ -2,8 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 import { closeDailyContentQueueResources } from "./daily-content-runtime.js";
 
 describe("Daily Content queue runtime", () => {
-  it("closes worker runtime resources in order for graceful shutdown", async () => {
+  it("closes scheduler, worker, and queue runtime resources in order for graceful shutdown", async () => {
     const closed: string[] = [];
+    const scheduler = {
+      close: vi.fn(async () => {
+        closed.push("scheduler");
+      })
+    };
     const worker = {
       close: vi.fn(async () => {
         closed.push("worker");
@@ -15,9 +20,10 @@ describe("Daily Content queue runtime", () => {
       })
     };
 
-    await closeDailyContentQueueResources([worker, queue]);
+    await closeDailyContentQueueResources([scheduler, worker, queue]);
 
-    expect(closed).toEqual(["worker", "queue"]);
+    expect(closed).toEqual(["scheduler", "worker", "queue"]);
+    expect(scheduler.close).toHaveBeenCalledOnce();
     expect(worker.close).toHaveBeenCalledOnce();
     expect(queue.close).toHaveBeenCalledOnce();
   });

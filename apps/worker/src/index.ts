@@ -55,11 +55,13 @@ try {
   runtime = createPrismaDailyContentQueueRuntime({
     connection: toRedisConnectionOptions(config.REDIS_URL),
     concurrency: config.DAILY_CONTENT_WORKER_CONCURRENCY,
+    schedulerIntervalMs: config.DAILY_CONTENT_SCHEDULER_INTERVAL_MS,
     publisher: new DisabledDailyContentPublisher(),
     logger
   });
   logger.info("Lunaria worker ready", {
     dailyContentQueue: "enabled",
+    dailyContentScheduler: "enabled",
     dailyContentPublisher: "not_configured"
   });
 } catch {
