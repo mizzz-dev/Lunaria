@@ -2,8 +2,8 @@ import { config as loadDotenv } from "dotenv";
 import { fileURLToPath } from "node:url";
 import { loadWorkerConfig, toRedisConnectionOptions } from "./config.js";
 import {
-  DisabledDailyContentPublisher,
   closePrismaDailyContentQueueRuntime,
+  createDailyContentPublisherRuntime,
   createPrismaDailyContentQueueRuntime,
   type DailyContentQueueRuntime
 } from "./daily-content-runtime.js";
@@ -52,17 +52,19 @@ process.once("SIGTERM", (signal) => {
 });
 
 try {
+  const dailyContentPublisher = createDailyContentPublisherRuntime(config);
+
   runtime = createPrismaDailyContentQueueRuntime({
     connection: toRedisConnectionOptions(config.REDIS_URL),
     concurrency: config.DAILY_CONTENT_WORKER_CONCURRENCY,
     schedulerIntervalMs: config.DAILY_CONTENT_SCHEDULER_INTERVAL_MS,
-    publisher: new DisabledDailyContentPublisher(),
+    publisher: dailyContentPublisher.publisher,
     logger
   });
   logger.info("Lunaria worker ready", {
     dailyContentQueue: "enabled",
     dailyContentScheduler: "enabled",
-    dailyContentPublisher: "not_configured"
+    dailyContentPublisher: dailyContentPublisher.mode
   });
 } catch {
   logger.error("Failed to start Lunaria worker");

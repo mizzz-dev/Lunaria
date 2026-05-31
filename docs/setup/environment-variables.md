@@ -12,6 +12,7 @@
 | `LOG_LEVEL` | 任意 | ログレベル | No |
 | `DATABASE_URL` | 必須 | PostgreSQL接続 | Yes |
 | `REDIS_URL` | 必須 | Redis/BullMQ接続 | Yes |
+| `DAILY_CONTENT_PUBLISHER` | 任意 | Daily Content投稿transport。`disabled`または`discord` | No |
 
 ## Discord
 
@@ -19,7 +20,7 @@
 |---|---|---|---|
 | `DISCORD_CLIENT_ID` | 必須 | Discord Application ID | No |
 | `DISCORD_CLIENT_SECRET` | Dashboard/OAuthで必須 | OAuth2 Secret | Yes |
-| `DISCORD_BOT_TOKEN` | Bot起動で必須 | Bot Token | Yes |
+| `DISCORD_BOT_TOKEN` | Bot起動または`DAILY_CONTENT_PUBLISHER=discord`で必須 | Bot Token | Yes |
 | `DISCORD_PUBLIC_KEY` | Interaction検証で使用 | Public Key | No |
 | `DISCORD_REDIRECT_URI` | OAuthで必須 | Callback URL | No |
 | `DISCORD_GUILD_ID` | 開発時任意 | Guildコマンド登録先 | No |

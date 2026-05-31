@@ -8,7 +8,7 @@ import {
   type DailyContentDueJob
 } from "@lunaria/core";
 import { describe, expect, it, vi } from "vitest";
-import { DailyContentProcessor } from "./daily-content-processor.js";
+import { DailyContentProcessor, DailyContentPublishError } from "./daily-content-processor.js";
 
 const job: DailyContentDueJob = {
   guildId: "guild-placeholder-a",
@@ -139,17 +139,54 @@ describe("DailyContentProcessor", () => {
     };
     const processor = new DailyContentProcessor(deliveries, publisher, audits);
 
-    await expect(processor.process(job)).rejects.toThrow("transport failure");
+    await expect(processor.process(job)).rejects.toThrow("PUBLISH_FAILED");
     const result = await processor.process(job);
 
     expect(result.state).toBe("published");
     expect(result.delivery.attemptCount).toBe(2);
     expect(publisher.publish).toHaveBeenCalledTimes(2);
+    expect((await deliveries.listByGuild("guild-placeholder-a"))[0]?.failureCode).toBeUndefined();
     const records = await audits.listByGuild("guild-placeholder-a");
     expect(records.map((record) => record.type)).toEqual([
       "daily_content.delivery.succeeded",
       "daily_content.delivery.failed"
     ]);
+  });
+
+  it("stores and throws only sanitized failure codes when publisher errors contain sensitive text", async () => {
+    const deliveries = new InMemoryDeliveryStore();
+    const audits = new InMemoryAuditLogStore();
+    const publisher = {
+      publish: vi
+        .fn()
+        .mockRejectedValue(
+          new Error("authorization=Bot test-token secret response body 今日の質問: {{question}}")
+        )
+    };
+    const processor = new DailyContentProcessor(deliveries, publisher, audits);
+
+    let caught: unknown;
+    try {
+      await processor.process(job);
+    } catch (error) {
+      caught = error;
+    }
+
+    const delivery = (await deliveries.listByGuild("guild-placeholder-a"))[0];
+    const audit = (await audits.listByGuild("guild-placeholder-a"))[0];
+
+    expect(caught).toBeInstanceOf(DailyContentPublishError);
+    expect(String(caught)).toContain("PUBLISH_FAILED");
+    expect(delivery?.status).toBe("retryable_failure");
+    expect(delivery?.failureCode).toBe("PUBLISH_FAILED");
+    expect(JSON.stringify(audit)).not.toContain("test-token");
+    expect(JSON.stringify(audit)).not.toContain("authorization");
+    expect(JSON.stringify(audit)).not.toContain("secret");
+    expect(JSON.stringify(audit)).not.toContain("{{question}}");
+    expect(JSON.stringify(caught)).not.toContain("test-token");
+    expect(JSON.stringify(caught)).not.toContain("authorization");
+    expect(JSON.stringify(caught)).not.toContain("secret");
+    expect(JSON.stringify(caught)).not.toContain("{{question}}");
   });
 
   it("keeps delivery and audit queries separated by guild", async () => {

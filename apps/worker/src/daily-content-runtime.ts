@@ -10,6 +10,11 @@ import {
   PrismaGuildPluginSettingsStore,
   prisma
 } from "@lunaria/db";
+import type { WorkerConfig } from "./config.js";
+import {
+  DiscordDailyContentPublisher,
+  FetchDiscordChannelMessageClient
+} from "./daily-content-discord-publisher.js";
 import { DailyContentOrchestrator } from "./daily-content-orchestrator.js";
 import { DailyContentProcessor, type DailyContentPublisher } from "./daily-content-processor.js";
 import {
@@ -61,6 +66,16 @@ export interface DailyContentQueueRuntime {
 export interface DailyContentClosableResource {
   close(): Promise<void>;
 }
+
+export type DailyContentPublisherRuntime =
+  | {
+      readonly mode: "disabled";
+      readonly publisher: DisabledDailyContentPublisher;
+    }
+  | {
+      readonly mode: "discord";
+      readonly publisher: DiscordDailyContentPublisher;
+    };
 
 export function createDailyContentQueueRuntime(
   dependencies: DailyContentQueueRuntimeDependencies
@@ -184,4 +199,35 @@ export class DisabledDailyContentPublisher implements DailyContentPublisher {
   async publish(): Promise<void> {
     throw new Error("DAILY_CONTENT_PUBLISHER_NOT_CONFIGURED");
   }
+}
+
+export function createDailyContentPublisherRuntime(
+  config: Pick<WorkerConfig, "DAILY_CONTENT_PUBLISHER" | "DISCORD_BOT_TOKEN">
+): DailyContentPublisherRuntime {
+  switch (config.DAILY_CONTENT_PUBLISHER) {
+    case "disabled":
+      return {
+        mode: "disabled",
+        publisher: new DisabledDailyContentPublisher()
+      };
+    case "discord":
+      if (!config.DISCORD_BOT_TOKEN?.trim()) {
+        throw new Error("DAILY_CONTENT_DISCORD_BOT_TOKEN_NOT_CONFIGURED");
+      }
+
+      return {
+        mode: "discord",
+        publisher: new DiscordDailyContentPublisher(
+          new FetchDiscordChannelMessageClient({
+            botToken: config.DISCORD_BOT_TOKEN.trim()
+          })
+        )
+      };
+    default:
+      return assertNever(config.DAILY_CONTENT_PUBLISHER);
+  }
+}
+
+function assertNever(value: never): never {
+  throw new Error(`DAILY_CONTENT_PUBLISHER_MODE_UNSUPPORTED:${String(value)}`);
 }
