@@ -1,6 +1,6 @@
 # コマンド一覧
 
-最終更新日: 2026-05-27
+最終更新日: 2026-05-31
 
 このドキュメントは、Lunaria の Discord Bot コマンド、コンテキストメニュー、Botが内部で扱うイベント、開発・運用コマンドを整理した一覧です。
 
@@ -52,7 +52,7 @@
 |---|---|---|---|---|
 | `messageCreate` | メッセージ作成時にルールを評価する | AutoResponse / Rule Engine / Quote返信補助 | 実装済み | Message Content Intent が必要 |
 | `interactionCreate` | スラッシュコマンド、コンテキストメニュー、ボタンを処理する | Core / Quote | 実装済み | Botクライアントで処理 |
-| `scheduledTime` | 指定時刻に処理を実行する | Daily Content | 予定 | Worker / Job Queue と連携予定 |
+| `scheduledTime` | 指定時刻に処理を実行する | Daily Content | 開発中 | Daily Content queue runner 境界あり。本番repeatable登録は未実装 |
 | `guildMemberAdd` | 新規参加者に対する処理を行う | Moderation / Welcome / RBAC | 予定 | Guild Members Intent が必要になる可能性あり |
 | `voiceStateUpdate` | VC参加/退出を検知する | Music / Recording / VC Analytics | 予定 | Voice関連機能で利用予定 |
 

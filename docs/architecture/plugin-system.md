@@ -1,6 +1,6 @@
 # Plugin System仕様
 
-最終更新日: 2026-05-28
+最終更新日: 2026-05-31
 
 Lunariaの機能はPlugin単位で管理します。PluginはSaaS版とセルフホスト版の両方で扱えることを前提にします。
 
@@ -68,4 +68,6 @@ Pluginは以下の情報を持ちます。
 
 Worker は `DailyContentDelivery` の dedupe key を使い、同一 `guildId / scheduleId / targetDate / contentSlot` の成功済み配信を再 publish しません。実際の Discord 投稿 transport と設定 UI は本段階には含めません。
 
-第二段階では、有効な `PluginSetting` から schedule の timezone と投稿時刻に基づいて due job を列挙し、`processing` の最終 claim から15分経過した delivery のみを同じ dedupe key で recovery できる内部境界を追加します。BullMQ / Redis runtime と本番 publisher の接続は引き続き後続 Issue とします。
+第二段階では、有効な `PluginSetting` から schedule の timezone と投稿時刻に基づいて due job を列挙し、`processing` の最終 claim から15分経過した delivery のみを同じ dedupe key で recovery できる内部境界を追加します。
+
+第三段階では、`apps/worker` に Daily Content 専用の BullMQ queue producer / worker processor 境界を追加します。queue payload は `guildId` と基準時刻のみを持ち、worker processor が orchestration 境界へ処理を委譲します。本番Discord publisher、repeatable production registration、Dashboard/API設定画面は引き続き後続 Issue とします。

@@ -1,6 +1,6 @@
 # 処理フロー
 
-最終更新日: 2026-05-28
+最終更新日: 2026-05-31
 
 このドキュメントは、Lunaria の主要な処理フローを開発者・運用者向けに整理したものです。実装済み機能と予定機能を混同しないよう、各フローにステータスを明記します。
 
@@ -356,17 +356,20 @@ flowchart TD
 
 ## Daily Content delivery 内部フロー
 
-ステータス: 開発中（IVR-47 scheduling foundation）
+ステータス: 開発中（IVR-56 queue runner）
 
 ```mermaid
 sequenceDiagram
   participant Scheduler as Due Job Producer
+  participant Queue as BullMQ / Redis
   participant Worker as apps/worker Processor
   participant Delivery as DailyContentDelivery
   participant Publisher as Injectable Publisher
   participant Audit as AuditLog
 
-  Scheduler->>Worker: guild / schedule / target date / content slot
+  Scheduler->>Queue: guildId / enqueuedAt / referenceTime
+  Queue->>Worker: Daily Content due scan job
+  Worker->>Worker: PluginSettingからdue job列挙
   Worker->>Delivery: dedupe keyをclaim
   alt 成功済みまたは処理中
     Delivery-->>Worker: skip
@@ -378,7 +381,7 @@ sequenceDiagram
   end
 ```
 
-この段階で publisher は注入可能な境界であり、本番 Discord transport や Dashboard/API 設定画面は未実装です。
+この段階で queue producer / worker processor は BullMQ runtime と domain logic を分離しています。payload と queue result は guildId、基準時刻、件数サマリのみを扱い、template本文や実エラー本文は保存しません。publisher は注入可能な境界であり、本番 Discord transport、repeatable production registration、Dashboard/API 設定画面は未実装です。
 
 ## Recording フロー
 

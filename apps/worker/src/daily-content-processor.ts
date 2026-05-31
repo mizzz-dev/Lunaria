@@ -28,8 +28,11 @@ export class DailyContentProcessor {
     private readonly now = () => new Date()
   ) {}
 
-  async process(job: DailyContentDueJob): Promise<DailyContentProcessingResult> {
-    const claim = await this.deliveries.claim(job, this.now());
+  async process(
+    job: DailyContentDueJob,
+    referenceTime = this.now()
+  ): Promise<DailyContentProcessingResult> {
+    const claim = await this.deliveries.claim(job, referenceTime);
 
     if (claim.state !== "claimed") {
       return {
@@ -49,7 +52,7 @@ export class DailyContentProcessor {
       throw error;
     }
 
-    const delivery = await this.deliveries.succeed(job.guildId, dedupeKey, this.now());
+    const delivery = await this.deliveries.succeed(job.guildId, dedupeKey, referenceTime);
     await this.recordAudit("daily_content.delivery.succeeded", delivery);
     return { state: "published", delivery };
   }

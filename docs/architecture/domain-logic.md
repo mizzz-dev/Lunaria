@@ -1,6 +1,6 @@
 # ドメインロジック
 
-最終更新日: 2026-05-28
+最終更新日: 2026-05-31
 
 このドキュメントは、Lunaria の実装で守るべきドメインロジック、責務分離、データ境界、権限・監査・安全設計を整理します。
 
@@ -249,7 +249,10 @@ Daily Content の内部 scheduling foundation は、`PluginSetting` で検証済
 - 成功・失敗 audit には判別用 metadata のみを記録し、template 本文や transport error 本文を含めません。
 - Worker の orchestration 境界は有効な `PluginSetting` の検証済み設定から、schedule の IANA timezone における対象日と投稿時刻を判定し、投稿時刻以後の同日再走査でも同一 dedupe key の job を列挙します。
 - `processing` delivery の `updatedAt` は最終 claim 時刻として扱い、`DAILY_CONTENT_PROCESSING_STALE_AFTER_MS`（15分）を経過したものだけを guild scope の条件付き更新で再 claim します。成功済み delivery は recovery 対象にしません。
-- この段階では queue transport や repeatable job 登録は接続せず、due 列挙と processor dispatch のテスト可能な境界に限定します。
+- Queue payload は `guildId` と `enqueuedAt`、必要に応じて `referenceTime` のみを持ち、template本文を含めません。
+- BullMQ / Redis runtime は `apps/worker` の queue producer / processor 境界に閉じ込め、domain logic は mock queue / fake store で単体検証できる形にします。
+- Queue processor の戻り値と運用ログは件数サマリのみを扱い、template本文、Secret、実エラー本文を含めません。
+- この段階では repeatable production registration、本番Discord publisher、Dashboard/API設定画面は接続しません。
 
 ## 高リスク機能の制約
 

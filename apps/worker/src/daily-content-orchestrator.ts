@@ -19,7 +19,10 @@ export class DailyContentOrchestrator {
     private readonly now = () => new Date()
   ) {}
 
-  async processDueForGuild(guildId: string): Promise<DailyContentOrchestrationResult> {
+  async processDueForGuild(
+    guildId: string,
+    referenceTime = this.now()
+  ): Promise<DailyContentOrchestrationResult> {
     const setting = await this.settings.get(guildId, DAILY_CONTENT_PLUGIN_ID);
 
     if (!setting?.enabled) {
@@ -33,12 +36,12 @@ export class DailyContentOrchestrator {
     const jobs = listDailyContentDueJobs({
       guildId,
       config: setting.config,
-      now: this.now()
+      now: referenceTime
     });
     const results: DailyContentProcessingResult[] = [];
 
     for (const job of jobs) {
-      results.push(await this.processor.process(job));
+      results.push(await this.processor.process(job, referenceTime));
     }
 
     return { jobs, results };
