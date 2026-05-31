@@ -1,6 +1,6 @@
 # 機能一覧
 
-最終更新日: 2026-05-28
+最終更新日: 2026-05-31
 
 このドキュメントは、Lunaria が提供する機能をカテゴリ別に整理した機能カタログです。実装状況は [`feature-status.md`](./feature-status.md) を参照してください。
 
@@ -25,6 +25,7 @@
 | Dashboard Shell | Web管理画面の土台 | 実装済み | `apps/dashboard` に実装 |
 | Guild Selector | 対象ギルド選択 | 実装済み | Discord OAuth連携と組み合わせて利用 |
 | AutoResponse設定 | キーワード返信ルールの保存・管理 | 実装済み | API RouteとDashboard UIが存在 |
+| Daily Content設定UI | 日次投稿スケジュールとテンプレートの保存・管理 | 実装済み | Dashboardからguild単位のenabled / schedulesを編集 |
 | Quote管理API | Quoteの作成・取得・非表示 | 実装済み | Dashboard APIとして提供 |
 | Audit Log表示API | ギルド単位の監査ログ取得 | 実装済み | Dashboardでの表示用API |
 | Plugin Store | プラグインの有効化/無効化UI | 予定 | Plugin Platformと連動予定 |
@@ -39,7 +40,7 @@
 | Quote | 良い発言を保存し、ランダム表示や画像カード化を行う | 実装済み | `/quote add`, `/quote random`, `/quote hide`, メッセージコンテキストメニュー対応 |
 | Quote画像カード | QuoteをOGP風の画像として生成する | 実装済み | sharpで生成。デザイン・背景・アイコン位置を切替可能 |
 | AutoResponse | 特定キーワードに自動返信する | 実装済み | Dashboardから1つのキーワード返信ルールを保存可能 |
-| Daily Content | 今日の名言、質問、ミッションなどを自動投稿する | 開発中 | 内部 due列挙 / dedupe / stale recovery / audit 基盤のみ。本番投稿と設定UIは未実装 |
+| Daily Content | 今日の名言、質問、ミッションなどを自動投稿する | 開発中 | 内部 due列挙 / dedupe / stale recovery / audit、Discord publish transport、設定API、設定UIを実装済み。本番運用の拡張は継続 |
 | Highlight / Summary | 人気投稿や週報を生成する | 予定 | AIやAnalyticsと連携予定 |
 | Community Economy | ポイント、称号、交換要素 | 予定 | 不正対策が必要 |
 

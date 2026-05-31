@@ -36,6 +36,7 @@
 | Quote管理API | Dashboard | `/api/guilds/[guildId]/quotes` | Quote取得・作成・非表示 |
 | AutoResponse設定API | Dashboard | `/api/guilds/[guildId]/autoresponse` | AutoResponse設定保存 |
 | Daily Content設定API | Dashboard | `/api/guilds/[guildId]/daily-content` | Daily Content設定取得・保存 |
+| Daily Content設定UI | Dashboard | Dashboard Daily Content panel | guild単位でenabled / schedules / slot templateを編集 |
 | Audit Log取得API | Dashboard | `/api/guilds/[guildId]/audit-logs` | 監査ログ表示用 |
 
 ## 開発中
@@ -46,7 +47,7 @@
 | AutoResponse複数ルール対応 | Community | 1ルール中心 | ルール一覧・複数ルール編集・A/B返信対応 |
 | Audit Stream | Dashboard | 監査ログ取得APIあり | UI表示・フィルタ・差分表示を強化 |
 | Quote管理UI | Dashboard | APIあり | 一覧、非表示、検索、タグ管理UIを追加 |
-| Daily Content scheduling / queue runner | Community / Worker | 設定schema、timezone due列挙、delivery dedupe / stale recovery、BullMQ queue producer / worker processor境界、Discord publish transport、Dashboard設定APIを実装 | 設定UIを別Issueで追加 |
+| Daily Content scheduling / queue runner | Community / Worker | 設定schema、timezone due列挙、delivery dedupe / stale recovery、BullMQ queue producer / worker processor境界、Discord publish transport、Dashboard設定API / UIを実装 | 運用強化やchannel picker実データ連携を後続Issueで追加 |
 | ドキュメント整備 | Documentation | READMEと要件文書あり | コマンド一覧・機能一覧・セットアップを継続更新 |
 
 ## 予定

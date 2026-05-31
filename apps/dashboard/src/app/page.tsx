@@ -3,9 +3,11 @@
 import { type ChangeEvent, useEffect, useState } from "react";
 import {
   Activity,
+  AlertTriangle,
   Bot,
   CalendarClock,
   ChevronDown,
+  CheckCircle2,
   CircleDollarSign,
   Command,
   FileClock,
@@ -43,8 +45,42 @@ const navItems = [
 const pluginCards = [
   { name: "AutoResponse", status: "Enabled", detail: "12 active rules", tone: "cyan" },
   { name: "Quote", status: "Enabled", detail: "38 saved quotes", tone: "violet" },
-  { name: "Daily Content", status: "Draft", detail: "Next post 09:00", tone: "blue" },
+  {
+    name: "Daily Content",
+    status: "Configure",
+    detail: "Guild schedules editable",
+    tone: "blue",
+    href: "#daily-content-settings"
+  },
   { name: "LFG", status: "Enabled", detail: "3 open parties", tone: "mint" }
+];
+
+const dailyContentSlots = [
+  {
+    slot: "quote",
+    label: "Quote",
+    placeholder: "今日の名言: {quote}"
+  },
+  {
+    slot: "question",
+    label: "Question",
+    placeholder: "今日の質問: いま一番遊びたいゲームは?"
+  },
+  {
+    slot: "mission",
+    label: "Mission",
+    placeholder: "今日のミッション: VCで1人にありがとうを伝える"
+  }
+] as const;
+
+const timezoneOptions = [
+  "Asia/Tokyo",
+  "UTC",
+  "America/Los_Angeles",
+  "America/New_York",
+  "Europe/London",
+  "Europe/Paris",
+  "Australia/Sydney"
 ];
 
 const rules = [
@@ -127,6 +163,35 @@ type AutoResponseState = {
   rules: AutoResponseRuleState[];
 };
 
+type DailyContentSlot = (typeof dailyContentSlots)[number]["slot"];
+
+type DailyContentTemplateState = {
+  slot: DailyContentSlot;
+  template: string;
+};
+
+type DailyContentScheduleState = {
+  clientKey: string;
+  id: string;
+  channelId: string;
+  timezone: string;
+  postingTime: string;
+  content: DailyContentTemplateState[];
+};
+
+type DailyContentState = {
+  enabled: boolean;
+  schedules: DailyContentScheduleState[];
+};
+
+type DailyContentStatus =
+  | "idle"
+  | "loading"
+  | "saving"
+  | "saved"
+  | "validation-error"
+  | "error";
+
 type AuditLogItem = {
   id: string;
   pluginId: string;
@@ -144,6 +209,14 @@ type AuditLogItem = {
       fields: string[];
     }>;
     keyword?: string;
+    scheduleCount?: number;
+    schedules?: Array<{
+      id: string;
+      channelId: string;
+      timezone: string;
+      postingTime: string;
+      contentSlots: DailyContentSlot[];
+    }>;
   };
   createdAt: string;
 };
@@ -172,6 +245,34 @@ const defaultAutoResponse: AutoResponseState = {
   rules: [createAutoResponseRule({ id: "default" })]
 };
 
+function createDailyContentSchedule(
+  overrides: Partial<DailyContentScheduleState> = {}
+): DailyContentScheduleState {
+  const fallbackId =
+    globalThis.crypto?.randomUUID?.().slice(0, 13) ??
+    `${Date.now()}-${Math.round(Math.random() * 1000)}`;
+
+  return {
+    clientKey: `schedule-${fallbackId}`,
+    id: `daily-${fallbackId}`,
+    channelId: "",
+    timezone: "Asia/Tokyo",
+    postingTime: "09:00",
+    content: [
+      {
+        slot: "question",
+        template: "今日の質問: いま一番遊びたいゲームは?"
+      }
+    ],
+    ...overrides
+  };
+}
+
+const defaultDailyContent: DailyContentState = {
+  enabled: false,
+  schedules: []
+};
+
 export default function DashboardPage() {
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [locale, setLocale] = useState<"ja" | "en">("ja");
@@ -182,6 +283,12 @@ export default function DashboardPage() {
   const [autoResponseStatus, setAutoResponseStatus] = useState<
     "idle" | "loading" | "saving" | "saved" | "unchanged" | "error"
   >("idle");
+  const [dailyContent, setDailyContent] =
+    useState<DailyContentState>(defaultDailyContent);
+  const [dailyContentStatus, setDailyContentStatus] =
+    useState<DailyContentStatus>("idle");
+  const [dailyContentValidationMessages, setDailyContentValidationMessages] =
+    useState<string[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>([]);
   const [auditStatus, setAuditStatus] = useState<
     "idle" | "loading" | "error"
@@ -236,6 +343,126 @@ export default function DashboardPage() {
     }));
   }
 
+  function updateDailyContent<K extends keyof DailyContentState>(
+    key: K,
+    value: DailyContentState[K]
+  ) {
+    setDailyContentValidationMessages([]);
+    setDailyContentStatus((current) =>
+      current === "validation-error" || current === "saved" ? "idle" : current
+    );
+    setDailyContent((current) => ({
+      ...current,
+      [key]: value
+    }));
+  }
+
+  function updateDailyContentSchedule<K extends keyof DailyContentScheduleState>(
+    clientKey: string,
+    key: K,
+    value: DailyContentScheduleState[K]
+  ) {
+    setDailyContentValidationMessages([]);
+    setDailyContentStatus((current) =>
+      current === "validation-error" || current === "saved" ? "idle" : current
+    );
+    setDailyContent((current) => ({
+      ...current,
+      schedules: current.schedules.map((schedule) =>
+        schedule.clientKey === clientKey ? { ...schedule, [key]: value } : schedule
+      )
+    }));
+  }
+
+  function addDailyContentSchedule() {
+    setDailyContentValidationMessages([]);
+    setDailyContentStatus((current) =>
+      current === "validation-error" || current === "saved" ? "idle" : current
+    );
+    setDailyContent((current) => ({
+      ...current,
+      schedules: [...current.schedules, createDailyContentSchedule()]
+    }));
+  }
+
+  function removeDailyContentSchedule(clientKey: string) {
+    setDailyContentValidationMessages([]);
+    setDailyContentStatus((current) =>
+      current === "validation-error" || current === "saved" ? "idle" : current
+    );
+    setDailyContent((current) => ({
+      ...current,
+      schedules: current.schedules.filter((schedule) => schedule.clientKey !== clientKey)
+    }));
+  }
+
+  function setDailyContentSlotIncluded(
+    clientKey: string,
+    slot: DailyContentSlot,
+    included: boolean
+  ) {
+    setDailyContentValidationMessages([]);
+    setDailyContentStatus((current) =>
+      current === "validation-error" || current === "saved" ? "idle" : current
+    );
+    setDailyContent((current) => ({
+      ...current,
+      schedules: current.schedules.map((schedule) => {
+        if (schedule.clientKey !== clientKey) {
+          return schedule;
+        }
+
+        const hasEntry = schedule.content.some((entry) => entry.slot === slot);
+
+        if (included && !hasEntry) {
+          return {
+            ...schedule,
+            content: [...schedule.content, { slot, template: "" }]
+          };
+        }
+
+        if (!included) {
+          return {
+            ...schedule,
+            content: schedule.content.filter((entry) => entry.slot !== slot)
+          };
+        }
+
+        return schedule;
+      })
+    }));
+  }
+
+  function updateDailyContentTemplate(
+    clientKey: string,
+    slot: DailyContentSlot,
+    template: string
+  ) {
+    setDailyContentValidationMessages([]);
+    setDailyContentStatus((current) =>
+      current === "validation-error" || current === "saved" ? "idle" : current
+    );
+    setDailyContent((current) => ({
+      ...current,
+      schedules: current.schedules.map((schedule) => {
+        if (schedule.clientKey !== clientKey) {
+          return schedule;
+        }
+
+        const hasEntry = schedule.content.some((entry) => entry.slot === slot);
+
+        return {
+          ...schedule,
+          content: hasEntry
+            ? schedule.content.map((entry) =>
+                entry.slot === slot ? { ...entry, template } : entry
+              )
+            : [...schedule.content, { slot, template }]
+        };
+      })
+    }));
+  }
+
   async function saveAutoResponse() {
     if (!selectedGuildId) {
       return;
@@ -257,6 +484,63 @@ export default function DashboardPage() {
       await loadAuditLogs(selectedGuildId, auditCategory);
     } else {
       setAutoResponseStatus("error");
+    }
+  }
+
+  async function saveDailyContent() {
+    if (!selectedGuildId) {
+      return;
+    }
+
+    const validationMessages = validateDailyContent(dailyContent);
+
+    if (validationMessages.length > 0) {
+      setDailyContentValidationMessages(validationMessages);
+      setDailyContentStatus("validation-error");
+      return;
+    }
+
+    setDailyContentStatus("saving");
+    setDailyContentValidationMessages([]);
+
+    try {
+      const response = await fetch(`/api/guilds/${selectedGuildId}/daily-content`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          enabled: dailyContent.enabled,
+          schedules: dailyContent.schedules.map((schedule) => ({
+            id: schedule.id.trim(),
+            channelId: schedule.channelId.trim(),
+            timezone: schedule.timezone.trim(),
+            postingTime: schedule.postingTime.trim(),
+            content: dailyContentSlots.flatMap(({ slot }) => {
+              const entry = schedule.content.find((item) => item.slot === slot);
+              return entry ? [{ slot, template: entry.template }] : [];
+            })
+          }))
+        })
+      });
+
+      if (response.ok) {
+        setDailyContentStatus("saved");
+        await loadAuditLogs(selectedGuildId, auditCategory);
+        return;
+      }
+
+      if (response.status === 400) {
+        setDailyContentValidationMessages([
+          "保存できませんでした。Schedule ID、Channel ID、Timezone、Posting time、選択したslotのtemplateを確認してください。"
+        ]);
+        setDailyContentStatus("validation-error");
+        return;
+      }
+
+      setDailyContentStatus("error");
+    } catch {
+      setDailyContentStatus("error");
     }
   }
 
@@ -330,6 +614,61 @@ export default function DashboardPage() {
         setAutoResponseStatus("idle");
       })
       .catch(() => setAutoResponseStatus("error"));
+  }, [me?.authenticated, selectedGuildId]);
+
+  useEffect(() => {
+    if (!selectedGuildId || !me?.authenticated) {
+      setDailyContent(defaultDailyContent);
+      setDailyContentStatus("idle");
+      setDailyContentValidationMessages([]);
+      return;
+    }
+
+    setDailyContentStatus("loading");
+    setDailyContentValidationMessages([]);
+
+    fetch(`/api/guilds/${selectedGuildId}/daily-content`)
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error("Daily Content request failed");
+        }
+
+        return response.json() as Promise<{
+          enabled?: boolean;
+          configured?: boolean;
+          schedules?: Array<Partial<DailyContentScheduleState>>;
+        }>;
+      })
+      .then((data) => {
+        const schedules = Array.isArray(data.schedules)
+          ? data.schedules.map((schedule) =>
+              createDailyContentSchedule({
+                id: schedule.id ?? "",
+                channelId: schedule.channelId ?? "",
+                timezone: schedule.timezone ?? "Asia/Tokyo",
+                postingTime: schedule.postingTime ?? "09:00",
+                content: Array.isArray(schedule.content)
+                  ? schedule.content
+                      .filter(isDailyContentTemplateState)
+                      .map((entry) => ({
+                        slot: entry.slot,
+                        template: entry.template
+                      }))
+                  : []
+              })
+            )
+          : [];
+
+        setDailyContent({
+          enabled: Boolean(data.enabled),
+          schedules
+        });
+        setDailyContentStatus("idle");
+      })
+      .catch(() => {
+        setDailyContent(defaultDailyContent);
+        setDailyContentStatus("error");
+      });
   }, [me?.authenticated, selectedGuildId]);
 
   useEffect(() => {
@@ -666,6 +1005,255 @@ export default function DashboardPage() {
           ) : null}
         </section>
 
+        <section
+          className="daily-content-panel"
+          id="daily-content-settings"
+          aria-label="Daily Content settings"
+        >
+          <div className="daily-content-header">
+            <div>
+              <h2>Daily Content</h2>
+              <p>
+                {locale === "ja"
+                  ? "ギルドごとの日次投稿スケジュール、投稿先、slot別テンプレートを管理します。"
+                  : "Manage guild-scoped daily schedules, channels, and slot templates."}
+              </p>
+            </div>
+            <div className="daily-content-actions">
+              <label className="switch-row">
+                <span>{dailyContent.enabled ? "Enabled" : "Disabled"}</span>
+                <input
+                  checked={dailyContent.enabled}
+                  type="checkbox"
+                  disabled={!me?.authenticated || dailyContentStatus === "loading"}
+                  onChange={(event) =>
+                    updateDailyContent("enabled", event.currentTarget.checked)
+                  }
+                />
+              </label>
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={!me?.authenticated || dailyContentStatus === "loading"}
+                onClick={addDailyContentSchedule}
+              >
+                <Plus size={18} />
+                Add schedule
+              </button>
+            </div>
+          </div>
+
+          <datalist id="daily-content-timezones">
+            {timezoneOptions.map((timezone) => (
+              <option key={timezone} value={timezone} />
+            ))}
+          </datalist>
+
+          {!me?.authenticated ? (
+            <div className="daily-content-empty">
+              <CalendarClock size={20} />
+              <strong>Discord login required</strong>
+              <p>Discordに接続すると、管理可能なguildのDaily Content設定を編集できます。</p>
+            </div>
+          ) : dailyContentStatus === "loading" ? (
+            <div className="daily-content-empty">
+              <RefreshCw size={20} />
+              <strong>Loading settings</strong>
+              <p>選択中のguildからDaily Content設定を読み込んでいます。</p>
+            </div>
+          ) : dailyContent.schedules.length === 0 ? (
+            <div className="daily-content-empty">
+              <CalendarClock size={20} />
+              <strong>No schedules yet</strong>
+              <p>enabledを無効にしたままでも、scheduleを追加して保存できます。</p>
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={addDailyContentSchedule}
+              >
+                <Plus size={18} />
+                Add first schedule
+              </button>
+            </div>
+          ) : (
+            <div className="daily-content-schedule-list">
+              {dailyContent.schedules.map((schedule, index) => (
+                <article className="daily-content-schedule-card" key={schedule.clientKey}>
+                  <div className="rule-card-header">
+                    <div>
+                      <strong>Schedule {index + 1}</strong>
+                      <span>
+                        {schedule.postingTime || "未設定"} / {schedule.timezone || "Timezone未設定"}
+                      </span>
+                    </div>
+                    <button
+                      aria-label="Delete Daily Content schedule"
+                      className="danger-icon-button"
+                      type="button"
+                      onClick={() => removeDailyContentSchedule(schedule.clientKey)}
+                    >
+                      <Trash2 size={17} />
+                    </button>
+                  </div>
+
+                  <div className="daily-content-form">
+                    <label>
+                      <span>Schedule ID</span>
+                      <input
+                        value={schedule.id}
+                        maxLength={120}
+                        placeholder="daily-morning"
+                        onChange={(event) =>
+                          updateDailyContentSchedule(
+                            schedule.clientKey,
+                            "id",
+                            event.currentTarget.value
+                          )
+                        }
+                      />
+                    </label>
+                    <label>
+                      <span>Channel ID</span>
+                      <input
+                        value={schedule.channelId}
+                        maxLength={32}
+                        placeholder="123456789012345678"
+                        onChange={(event) =>
+                          updateDailyContentSchedule(
+                            schedule.clientKey,
+                            "channelId",
+                            event.currentTarget.value
+                          )
+                        }
+                      />
+                    </label>
+                    <label>
+                      <span>Timezone</span>
+                      <input
+                        value={schedule.timezone}
+                        list="daily-content-timezones"
+                        placeholder="Asia/Tokyo"
+                        onChange={(event) =>
+                          updateDailyContentSchedule(
+                            schedule.clientKey,
+                            "timezone",
+                            event.currentTarget.value
+                          )
+                        }
+                      />
+                    </label>
+                    <label>
+                      <span>Posting time</span>
+                      <input
+                        value={schedule.postingTime}
+                        type="time"
+                        onChange={(event) =>
+                          updateDailyContentSchedule(
+                            schedule.clientKey,
+                            "postingTime",
+                            event.currentTarget.value
+                          )
+                        }
+                      />
+                    </label>
+                  </div>
+
+                  <div className="daily-content-slot-list">
+                    {dailyContentSlots.map(({ slot, label, placeholder }) => {
+                      const entry = schedule.content.find((item) => item.slot === slot);
+
+                      return (
+                        <div className="daily-content-slot-row" key={slot}>
+                          <label className="check-row">
+                            <input
+                              checked={Boolean(entry)}
+                              type="checkbox"
+                              onChange={(event) =>
+                                setDailyContentSlotIncluded(
+                                  schedule.clientKey,
+                                  slot,
+                                  event.currentTarget.checked
+                                )
+                              }
+                            />
+                            <span>{label}</span>
+                          </label>
+                          <textarea
+                            value={entry?.template ?? ""}
+                            rows={3}
+                            maxLength={1800}
+                            disabled={!entry}
+                            placeholder={placeholder}
+                            onChange={(event) =>
+                              updateDailyContentTemplate(
+                                schedule.clientKey,
+                                slot,
+                                event.currentTarget.value
+                              )
+                            }
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+
+          <div className="daily-content-preview">
+            <div>
+              <CalendarClock size={18} />
+              <span>{dailyContent.schedules.length} schedules</span>
+              <strong>
+                {dailyContent.schedules.reduce(
+                  (total, schedule) => total + schedule.content.length,
+                  0
+                )} slots
+              </strong>
+            </div>
+            <button
+              className="primary-button"
+              type="button"
+              disabled={
+                !me?.authenticated ||
+                dailyContentStatus === "saving" ||
+                dailyContentStatus === "loading"
+              }
+              onClick={saveDailyContent}
+            >
+              <Save size={18} />
+              {dailyContentStatus === "saving" ? "Saving" : "Save Daily Content"}
+            </button>
+          </div>
+
+          {dailyContentStatus === "saved" ? (
+            <p className="form-message success">
+              <CheckCircle2 size={16} />
+              Daily Content設定を保存しました。
+            </p>
+          ) : null}
+          {dailyContentStatus === "validation-error" ? (
+            <div className="form-message error">
+              <AlertTriangle size={16} />
+              <div>
+                <strong>入力内容を確認してください。</strong>
+                <ul>
+                  {dailyContentValidationMessages.map((message) => (
+                    <li key={message}>{message}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          ) : null}
+          {dailyContentStatus === "error" ? (
+            <p className="form-message error">
+              <AlertTriangle size={16} />
+              Daily Content設定の読み込みまたは保存に失敗しました。
+            </p>
+          ) : null}
+        </section>
+
         <section className="content-grid">
           <div className="panel plugin-panel">
             <div className="panel-header">
@@ -683,7 +1271,13 @@ export default function DashboardPage() {
                     <strong>{plugin.name}</strong>
                     <p>{plugin.detail}</p>
                   </div>
-                  <span className="status-chip">{plugin.status}</span>
+                  {"href" in plugin ? (
+                    <a className="status-chip" href={plugin.href}>
+                      {plugin.status}
+                    </a>
+                  ) : (
+                    <span className="status-chip">{plugin.status}</span>
+                  )}
                 </div>
               ))}
             </div>
@@ -836,6 +1430,10 @@ function formatAuditEvent(type: string, locale: "ja" | "en"): string {
     "autoresponse.rule.matched": {
       ja: "AutoResponseが返信",
       en: "AutoResponse replied"
+    },
+    "daily_content.config.updated": {
+      ja: "Daily Content設定を更新",
+      en: "Daily Content settings updated"
     }
   } as const;
 
@@ -860,6 +1458,13 @@ function formatAuditSummary(item: AuditLogItem, locale: "ja" | "en"): string | u
   }
 
   if (item.type !== "autoresponse.config.updated") {
+    if (item.type === "daily_content.config.updated") {
+      const scheduleCount = item.data?.scheduleCount ?? 0;
+      return locale === "ja"
+        ? `Schedule ${scheduleCount}件`
+        : `${scheduleCount} schedules`;
+    }
+
     return undefined;
   }
 
@@ -895,6 +1500,80 @@ function formatAuditSummary(item: AuditLogItem, locale: "ja" | "en"): string | u
   }
 
   return fragments.length > 0 ? fragments.join(" / ") : undefined;
+}
+
+function isDailyContentTemplateState(value: unknown): value is DailyContentTemplateState {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+
+  const candidate = value as Partial<DailyContentTemplateState>;
+  return (
+    (candidate.slot === "quote" ||
+      candidate.slot === "question" ||
+      candidate.slot === "mission") &&
+    typeof candidate.template === "string"
+  );
+}
+
+function validateDailyContent(state: DailyContentState): string[] {
+  const messages: string[] = [];
+  const ids = new Set<string>();
+
+  if (state.schedules.length > 20) {
+    messages.push("scheduleは20件以内にしてください。");
+  }
+
+  state.schedules.forEach((schedule, index) => {
+    const label = `Schedule ${index + 1}`;
+    const id = schedule.id.trim();
+    const channelId = schedule.channelId.trim();
+    const timezone = schedule.timezone.trim();
+    const postingTime = schedule.postingTime.trim();
+
+    if (!id || id.length > 120 || !/^[A-Za-z0-9_-]+$/.test(id)) {
+      messages.push(`${label}: idは1〜120文字の英数字、ハイフン、アンダースコアで入力してください。`);
+    } else if (ids.has(id)) {
+      messages.push(`${label}: idが重複しています。`);
+    } else {
+      ids.add(id);
+    }
+
+    if (!channelId || channelId.length > 32) {
+      messages.push(`${label}: channelIdは1〜32文字で入力してください。`);
+    }
+
+    if (!timezone || !isValidTimezone(timezone)) {
+      messages.push(`${label}: timezoneはIANA timezoneで入力してください。`);
+    }
+
+    if (!/^(?:[01][0-9]|2[0-3]):[0-5][0-9]$/.test(postingTime)) {
+      messages.push(`${label}: postingTimeはHH:mm形式で入力してください。`);
+    }
+
+    if (schedule.content.length < 1 || schedule.content.length > 3) {
+      messages.push(`${label}: quote / question / mission のうち1つ以上を選択してください。`);
+    }
+
+    dailyContentSlots.forEach(({ slot, label: slotLabel }) => {
+      const entry = schedule.content.find((item) => item.slot === slot);
+
+      if (entry && (entry.template.trim().length === 0 || entry.template.length > 1800)) {
+        messages.push(`${label}: ${slotLabel} templateは1〜1800文字で入力してください。`);
+      }
+    });
+  });
+
+  return messages;
+}
+
+function isValidTimezone(timezone: string): boolean {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: timezone }).format();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function formatEnabled(enabled: boolean, locale: "ja" | "en"): string {
