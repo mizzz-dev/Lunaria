@@ -56,7 +56,10 @@ describe("DailyContentOrchestrator", () => {
     expect(dailyContentDedupeKey(processed.jobs[0]!)).toBe(
       "daily-content:guild-placeholder-a:daily-morning:2026-05-28:question"
     );
-    expect(processor.process).toHaveBeenCalledWith(processed.jobs[0]);
+    expect(processor.process).toHaveBeenCalledWith(
+      processed.jobs[0],
+      new Date("2026-05-27T23:30:00.000Z")
+    );
   });
 
   it("does not pass another guild's or not-yet-due settings to processing", async () => {
