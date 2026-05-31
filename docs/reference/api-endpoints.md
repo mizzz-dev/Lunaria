@@ -1,6 +1,6 @@
 # APIエンドポイント一覧
 
-最終更新日: 2026-05-27
+最終更新日: 2026-05-31
 
 このドキュメントは、LunariaのAPIを利用者・開発者向けに整理した一覧です。
 
@@ -20,6 +20,8 @@
 | GET | `/api/guilds/[guildId]/audit-logs` | 監査ログ取得 | 実装済み |
 | GET | `/api/guilds/[guildId]/autoresponse` | AutoResponse設定取得 | 実装済み |
 | POST | `/api/guilds/[guildId]/autoresponse` | AutoResponse設定保存 | 実装済み |
+| GET | `/api/guilds/[guildId]/daily-content` | Daily Content設定取得 | 実装済み |
+| POST | `/api/guilds/[guildId]/daily-content` | Daily Content設定保存 | 実装済み |
 
 ## 今後追加予定
 
