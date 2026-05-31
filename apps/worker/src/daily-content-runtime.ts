@@ -20,6 +20,12 @@ import {
   type DailyContentQueueJobResult,
   type DailyContentQueuePayload
 } from "./daily-content-queue.js";
+import {
+  DailyContentScheduler,
+  registerDailyContentScheduler,
+  type DailyContentSchedulerRegistration,
+  type DailyContentSchedulerSettingsStore
+} from "./daily-content-scheduler.js";
 
 export interface DailyContentRuntimeLogger {
   info(message: string, metadata?: Record<string, unknown>): void;
@@ -30,10 +36,13 @@ export interface DailyContentRuntimeLogger {
 export interface DailyContentQueueRuntimeDependencies {
   readonly connection: ConnectionOptions;
   readonly settings: GuildPluginSettingsStore;
+  readonly schedulerSettings?: DailyContentSchedulerSettingsStore;
   readonly deliveries: DailyContentDeliveryStore;
   readonly auditLogs: AuditLogStore;
   readonly publisher: DailyContentPublisher;
   readonly concurrency?: number;
+  readonly schedulerIntervalMs?: number;
+  readonly registerScheduler?: boolean;
   readonly logger?: DailyContentRuntimeLogger;
 }
 
@@ -45,6 +54,7 @@ export interface DailyContentQueueRuntime {
     DailyContentQueueJobResult,
     typeof DAILY_CONTENT_PROCESS_DUE_GUILD_JOB
   >;
+  readonly scheduler?: DailyContentSchedulerRegistration;
   close(): Promise<void>;
 }
 
@@ -85,6 +95,20 @@ export function createDailyContentQueueRuntime(
     }
   );
   const logger = dependencies.logger;
+  const producer = new DailyContentQueueProducer(queue);
+  const scheduler =
+    dependencies.registerScheduler === true && dependencies.schedulerSettings
+      ? registerDailyContentScheduler({
+          scheduler: new DailyContentScheduler(
+            dependencies.schedulerSettings,
+            producer,
+            () => new Date(),
+            logger
+          ),
+          intervalMs: dependencies.schedulerIntervalMs ?? 60_000,
+          ...(logger ? { logger } : {})
+        })
+      : undefined;
 
   worker.on("completed", (job, result) => {
     logger?.info("Daily Content queue job completed", {
@@ -108,11 +132,12 @@ export function createDailyContentQueueRuntime(
   });
 
   return {
-    producer: new DailyContentQueueProducer(queue),
+    producer,
     queue,
     worker,
+    ...(scheduler ? { scheduler } : {}),
     async close() {
-      await closeDailyContentQueueResources([worker, queue]);
+      await closeDailyContentQueueResources([...(scheduler ? [scheduler] : []), worker, queue]);
     }
   };
 }
@@ -129,15 +154,21 @@ export function createPrismaDailyContentQueueRuntime(input: {
   readonly connection: ConnectionOptions;
   readonly publisher: DailyContentPublisher;
   readonly concurrency?: number;
+  readonly schedulerIntervalMs?: number;
   readonly logger?: DailyContentRuntimeLogger;
 }): DailyContentQueueRuntime {
+  const settings = new PrismaGuildPluginSettingsStore(prisma);
+
   return createDailyContentQueueRuntime({
     connection: input.connection,
-    settings: new PrismaGuildPluginSettingsStore(prisma),
+    settings,
+    schedulerSettings: settings,
     deliveries: new PrismaDailyContentDeliveryStore(prisma),
     auditLogs: new PrismaAuditLogStore(prisma),
     publisher: input.publisher,
+    registerScheduler: true,
     ...(input.concurrency ? { concurrency: input.concurrency } : {}),
+    ...(input.schedulerIntervalMs ? { schedulerIntervalMs: input.schedulerIntervalMs } : {}),
     ...(input.logger ? { logger: input.logger } : {})
   });
 }

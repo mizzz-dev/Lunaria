@@ -55,6 +55,18 @@ export class PrismaGuildPluginSettingsStore implements GuildPluginSettingsStore 
     return records.map((record) => this.toDomain(record));
   }
 
+  async listEnabledByPlugin(pluginId: string): Promise<GuildPluginSettings[]> {
+    const records = await this.prisma.pluginSetting.findMany({
+      where: {
+        pluginId,
+        enabled: true
+      },
+      orderBy: [{ guildId: "asc" }, { updatedAt: "asc" }]
+    });
+
+    return records.map((record) => this.toDomain(record));
+  }
+
   private toDomain(record: {
     guildId: string;
     pluginId: string;
