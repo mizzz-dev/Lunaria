@@ -12,6 +12,15 @@ export interface DailyContentPublisher {
   publish(job: DailyContentDueJob & { readonly dedupeKey: string }): Promise<void>;
 }
 
+export const DAILY_CONTENT_PUBLISH_FAILED = "PUBLISH_FAILED";
+
+export class DailyContentPublishError extends Error {
+  constructor(readonly failureCode: string = DAILY_CONTENT_PUBLISH_FAILED) {
+    super(failureCode);
+    this.name = "DailyContentPublishError";
+  }
+}
+
 export type DailyContentProcessingResult =
   | { readonly state: "published"; readonly delivery: DailyContentDeliveryRecord }
   | {
@@ -47,9 +56,10 @@ export class DailyContentProcessor {
     try {
       await this.publisher.publish({ ...job, dedupeKey });
     } catch (error) {
-      const delivery = await this.deliveries.fail(job.guildId, dedupeKey, "PUBLISH_FAILED");
+      const failureCode = getDailyContentPublishFailureCode(error);
+      const delivery = await this.deliveries.fail(job.guildId, dedupeKey, failureCode);
       await this.recordAudit("daily_content.delivery.failed", delivery);
-      throw error;
+      throw new DailyContentPublishError(failureCode);
     }
 
     const delivery = await this.deliveries.succeed(job.guildId, dedupeKey, referenceTime);
@@ -76,4 +86,18 @@ export class DailyContentProcessor {
       }
     });
   }
+}
+
+export function getDailyContentPublishFailureCode(error: unknown): string {
+  if (
+    error &&
+    typeof error === "object" &&
+    "failureCode" in error &&
+    typeof error.failureCode === "string" &&
+    /^[A-Z0-9_]{1,80}$/.test(error.failureCode)
+  ) {
+    return error.failureCode;
+  }
+
+  return DAILY_CONTENT_PUBLISH_FAILED;
 }
